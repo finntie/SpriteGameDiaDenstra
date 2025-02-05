@@ -3,6 +3,7 @@
 class Shader;
 class screen;
 class sprite;
+class player;
 class gamesystem
 {
 public:
@@ -25,7 +26,7 @@ public:
 	screen* screenObj;
 private:
 	sprite spriteObj;
-
+	player playerObj;
 	float test = 0;
 
 };

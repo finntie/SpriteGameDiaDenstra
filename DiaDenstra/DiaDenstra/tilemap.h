@@ -18,7 +18,6 @@ private:
 
 	static int* tileMapToArray(const char* tileMapFile, int& widht, int& height);
 	static std::vector<std::pair<glm::vec2, glm::vec2>> verticesFileToArray(const char* verticesTileMapFile);
-	static void triangulateArea(std::vector<std::vector<glm::vec2>> polygons, std::vector<std::vector<glm::vec2>> outsideArea);
 };
 
 

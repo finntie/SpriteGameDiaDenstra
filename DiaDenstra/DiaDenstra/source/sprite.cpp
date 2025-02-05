@@ -20,11 +20,12 @@ void sprite::initFromFile(spriteStr* Sprite, const char* file, const int frames,
 	}
 	//Check if frames adds up to width
 	if (Sprite->width % frames > 0) printf("Width not dividable with amount of frames\n");
+
 	Sprite->name = name;
 	Sprite->buffer = (unsigned int*)_aligned_malloc(Sprite->width * Sprite->height * sizeof(unsigned int), 64);
 	if (Sprite->buffer == NULL)
 	{
-		printf("Error tryint to init file\n");
+		printf("Error trying to init file\n");
 		return;
 	}
 	Sprite->initializedBuffer = true; //We need to delete buffer in destructor
@@ -34,7 +35,7 @@ void sprite::initFromFile(spriteStr* Sprite, const char* file, const int frames,
 		const unsigned char p = data[i];
 		Sprite->buffer[i] = p + (p << 8) + (p << 16);
 	}
-	else if (n == 3)
+	else if (n == 3) //RGB
 	{
 		for (int i = 0; i < s; i++) Sprite->buffer[i] = (data[i * n + 0] << 16) + (data[i * n + 1] << 8) + data[i * n + 2] + (255 << 24);
 	}
@@ -42,6 +43,8 @@ void sprite::initFromFile(spriteStr* Sprite, const char* file, const int frames,
 	{
 		for (int i = 0; i < s; i++) Sprite->buffer[i] = (data[i * n + 3] << 24) + (data[i * n + 0] << 16) + (data[i * n + 1] << 8) + data[i * n + 2];
 	}
+	//Add Stransform
+	Sprite->localSpriteTransform = Stransform();
 	Sprite->maxFrames = frames;
 	int frameOffset = Sprite->width;
 	Sprite->width /= frames;
@@ -52,7 +55,7 @@ void sprite::initFromFile(spriteStr* Sprite, const char* file, const int frames,
 	{
 		for (int x = 0; x < Sprite->width; x++)
 		{
-			Sprite->afterBuffer[x + y * Sprite->width] = Sprite->buffer[(x + frameOffset) + y * frameOffset];
+			Sprite->afterBuffer[x + y * Sprite->width] = Sprite->buffer[x + y * frameOffset];
 		}
 	}
 
@@ -76,7 +79,7 @@ void sprite::initEmpty(spriteStr* Sprite, const int frames, const char* name, in
 	}
 	Sprite->initializedBuffer = true; //We need to delete buffer in destructor
 	const int s = Sprite->width * Sprite->height;
-	for (int i = 0; i < s; i++) Sprite->buffer[i] = (255 << 24) + (255 << 16) + (255 << 8) + 255; //Whole Sprite White
+	for (int i = 0; i < s; i++) Sprite->buffer[i] = (0 << 24) + (255 << 16) + (255 << 8) + 255; //Whole Sprite White
 
 	Sprite->maxFrames = frames;
 	Sprite->name = name;
@@ -97,72 +100,19 @@ void sprite::initEmpty(spriteStr* Sprite, const int frames, const char* name, in
 	Sprite->texture = new GLTexture(Sprite->width, Sprite->height, GLTexture::DEFAULT);
 }
 
-void sprite::emptySprite(spriteStr* Sprite, glm::vec3 color)
+void sprite::emptySprite(spriteStr* Sprite, glm::vec4 color)
 {
 	const int s = Sprite->width * Sprite->maxFrames * Sprite->height;
-	for (int i = 0; i < s; i++) Sprite->buffer[i] = (int(color.x * 255) << 24) + (int(color.x * 255) << 16) + (int(color.y * 255) << 8) + int(color.z * 255); //Whole Sprite White
+	for (int i = 0; i < s; i++) Sprite->buffer[i] = (int(color.w * 255) << 24) + (int(color.x * 255) << 16) + (int(color.y * 255) << 8) + int(color.z * 255); //Whole Sprite White
 }
 
-void sprite::drawSpritesPerPixel(screen& screenObj)
+
+void sprite::updateSpriteBuffer()
 {
-	for (const auto& [spriteEntity, transform, Sprite] : Registry.view<Stransform, spriteStr>().each())
+	for (const auto& [spriteEntity, Sprite] : Registry.view<spriteStr>().each())
 	{
-		//Now draw it
-		float rot = transform.getRotation();
-		glm::vec2 trans = transform.getTranslation(), scale = transform.getScale();
-		int maxAmountPixels = int(ceil(scale.x) * ceil(scale.y) + 1);
-		std::pair<int, int>* fillPixelArray = new std::pair<int, int>[maxAmountPixels] ;
+		Stransform& transform = Sprite.localSpriteTransform;
 
-		for (int y = 0; y < Sprite.height; y++)
-		{
-			for (int x = 0; x < Sprite.width; x++)
-			{
-				//Get the transformed pixel
-				int Bx = x, By = y;
-				unsigned color = Sprite.buffer[x + y * Sprite.width];
-				spritetransform::applyTransform(Bx, By, color, true, fillPixelArray, Sprite, scale, rot, trans);
-				//Check the depth buffer
-				for (int i = 1; i < fillPixelArray[0].first; i++) //Loop over all the pixels
-				{
-					int Px = fillPixelArray[i].first;
-					int Py = fillPixelArray[i].second;
-
-					if (Px >= 0 && Px < screenObj.width && Py >= 0 && Py < screenObj.height)
-					{
-						if (Sprite.depth >= screenObj.depthBuffer[Px + Py * screenObj.width])
-						{
-							screenObj.depthBuffer[Px + Py * screenObj.width] = int(Sprite.depth);
-
-							//Draw based on transparancy.
-							if ((Sprite.afterBuffer[i] & 255) < 255) //There is tranparancy.
-							{
-								float colorArray[4];
-								float colorArrayScreen[4];
-								colorIntToArray(Sprite.afterBuffer[i], colorArray);
-								colorIntToArray(screenObj.pixels[x + y * screenObj.width] << 8, colorArrayScreen);
-								for (int i = 0; i < 3; i++)
-								{
-									colorArrayScreen[i] = (colorArrayScreen[i] * (1 - colorArray[3])) + colorArray[i] * colorArray[3];
-								}
-								color = (colorArrayToInt(colorArray));
-							}
-
-							screenObj.pixels[Px + Py * screenObj.width] = color;
-						}
-					}
-				}
-			}
-		}
-		delete[] fillPixelArray;
-
-	}
-
-}
-
-void sprite::updateSpriteBuffer(screen& screenObj)
-{
-	for (const auto& [spriteEntity, transform, Sprite] : Registry.view<Stransform, spriteStr>().each())
-	{
 		//Check if scale or rotation changed
 		if (transform.scaleChanged || transform.rotationChanged || Sprite.frameChanged)
 		{
@@ -216,7 +166,7 @@ void sprite::updateSpriteBuffer(screen& screenObj)
 					//Get the transformed pixel
 					int Bx = x, By = y;
 					unsigned color = Sprite.buffer[(x + Sprite.width * Sprite.currentFrame) + y * Sprite.width * Sprite.maxFrames];
-					spritetransform::applyTransform(Bx, By, color, true, fillPixelArray, Sprite, scale, rot, trans);
+					spritetransform::applyTransform(Bx, By, fillPixelArray, Sprite, scale, rot, trans);
 					for (int i = 1; i < fillPixelArray[0].first; i++) //Loop over all the pixels
 					{
 						int Px = fillPixelArray[i].first;
@@ -257,56 +207,15 @@ void sprite::updateSpriteBuffer(screen& screenObj)
 			Sprite.texture = nullptr;
 			Sprite.texture = new GLTexture(Sprite.afterWidth, Sprite.afterHeight, GLTexture::DEFAULT);
 
-
 		}
-
-		int xtrans = int(transform.getTranslation().x);
-		int ytrans = int(transform.getTranslation().y);
-
-		
-		//-------------------------Draw Function Using One General Buffer------------------------------------
-
-		//for (int i = 0; i < Sprite.AfterBufferSize; i++) //Loop over all the pixels
-		//{
-		//	int y = i / Sprite.afterWidth;
-		//	int x = i % Sprite.afterWidth;
-		//	unsigned color = *(Sprite.afterBuffer + i);
-		//	//Add translation
-		//	x += xtrans - Sprite.afterWidthDifference;
-		//	y += ytrans - Sprite.afterHeightDifference;
-		//
-		//	//int j = i + (int(transform.getTranslation().x) + (int(transform.getTranslation().y) * Width));
-		//
-		//	if (x >= 0 &&  y >= 0 && x  < screenObj.width && y < screenObj.height)
-		//	{
-		//		if (Sprite.depth >= screenObj.depthBuffer[x + y * screenObj.width])
-		//		{
-		//			screenObj.depthBuffer[x + y * screenObj.width] = Sprite.depth;
-		//
-		//			//Draw based on transparancy.
-		//			if ((Sprite.afterBuffer[i] & 255) < 255) //There is tranparancy.
-		//			{
-		//				float colorArray[4];
-		//				float colorArrayScreen[4];
-		//				unsigned int screenColor = screenObj.pixels[x + y * screenObj.width] << 8;
-		//				colorIntToArray(Sprite.afterBuffer[i], colorArray);
-		//				colorIntToArray(screenColor, colorArrayScreen);
-		//
-		//				colorArray[0] = (colorArrayScreen[0] * (1 - colorArray[3])) + colorArray[0] * colorArray[3];
-		//				colorArray[1] = (colorArrayScreen[1] * (1 - colorArray[3])) + colorArray[1] * colorArray[3];
-		//				colorArray[2] = (colorArrayScreen[2] * (1 - colorArray[3])) + colorArray[2] * colorArray[3];
-		//
-		//				
-		//				color = (colorArrayToInt(colorArray));
-		//			}
-		//
-		//			screenObj.pixels[x + y * screenObj.width] = (color >> 8); //Bitshift 8 to the right since we are not counting for the alpha channel
-		//		}
-		//	}
-		//
-		//}
-
 	}
+}
+
+void sprite::setSpriteWidthHeight(spriteStr* Sprite, int width, int height)
+{
+	float xScale = float(width) /  float(Sprite->width);
+	float yScale = float(height) / float(Sprite->height);
+	Sprite->localSpriteTransform.setScale({ xScale, yScale });
 }
 
 void sprite::setFrameSprite(spriteStr* Sprite, int frame) 
@@ -320,6 +229,24 @@ void sprite::setFrameSprite(spriteStr* Sprite, int frame)
 	{
 		printf("set-frame not valid\n");
 	}
+}
+
+Entity sprite::createSpriteToRegistry(const char* file, const char* name, float depth, int frames, glm::vec2 pos, glm::vec2 scale, glm::vec2 widthHeight, float rotation)
+{
+	Entity spriteEntity = Registry.create();
+	auto& Sprite = CreateComponent<spriteStr>(spriteEntity); 
+	Sprite.depth = depth; 
+	initFromFile(&Sprite, file, frames, name);
+	if (widthHeight.x > 0 && widthHeight.y > 0)
+	{
+		setSpriteWidthHeight(&Sprite, int(widthHeight.x), int(widthHeight.y));
+	}
+	auto& transform = CreateComponent<Stransform>(spriteEntity);
+	transform.setScale(scale); 
+	transform.setTranslation(pos); 
+	transform.setRotation(rotation); 
+	updateSpriteBuffer();
+	return spriteEntity;
 }
 
 void sprite::colorIntToArray(unsigned int color, float* colorArray)

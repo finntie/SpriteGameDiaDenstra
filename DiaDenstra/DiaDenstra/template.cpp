@@ -15,6 +15,7 @@
 
 #include "sprite.h"
 #include "screen.h"
+#include "player.h"
 #include "gamesystem.h"
 #include "input.hpp"
 
@@ -480,15 +481,19 @@ int main()
 		// send the rendering result to the screen using OpenGL
 		if (frameNr++ > 1)
 		{
+			//Clear screen
+			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT);
+
+			//Also draw other sprites
+			GSystem->drawSprites(shader);
+
+			//The screen buffer is more or less now my debug drawing buffer thus we draw it last
 			if (GSystem->screenObj) renderTarget->CopyFrom(GSystem->screenObj->pixels);
 			shader->Bind();
 			shader->SetInputTexture( 0, "c", renderTarget );
 			DrawQuad(shader);
 			shader->Unbind();
-
-			//Also draw other sprites
-			GSystem->drawSprites(shader);
-
 
 
 			glfwSwapBuffers( window );

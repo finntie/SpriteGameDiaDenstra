@@ -9,10 +9,10 @@ struct Stransform
 {
 public:
 	
-	glm::vec2 getScale() { return Scale; }
-	float getRotation() { return Rotation; }
-	glm::vec2 getTranslation() { return Translation; }
-	glm::vec2 getVel() { return appliedVel; }
+	const glm::vec2 getScale() { return Scale; }
+	const float getRotation() { return Rotation; }
+	const glm::vec2 getTranslation() { return Translation; }
+	const glm::vec2 getVel() { return appliedVel; }
 
 	void setScale(glm::vec2 scale) { Scale = scale, scaleChanged = true; }
 	void setRotation(float rotation) { Rotation = glm::radians(rotation), rotationChanged = true; }
@@ -44,7 +44,7 @@ public:
 	/// <param name="scale">Scale</param>
 	/// <param name="rotation">Rotation</param>
 	/// <param name="translation">Position</param>
-	static void applyTransform(int& x, int& y, unsigned& color, bool useAvarageColor, std::pair<int, int>* fillPixels, spriteStr & Sprite, glm::vec2 scale, float rotation, glm::vec2 translation);
+	static void applyTransform(int& x, int& y, std::pair<int, int>* fillPixels, spriteStr & Sprite, glm::vec2 scale, float rotation, glm::vec2 translation);
 
 	static void fillRotateGaps(spriteStr& Sprite, float rotation, glm::vec2 scale);
 	

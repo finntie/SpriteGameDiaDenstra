@@ -67,6 +67,7 @@ public:
 	void CopyTo(screen* dst, int x, int y);
 	void Box(int x1, int y1, int x2, int y2, unsigned int color);
 	void Bar(int x1, int y1, int x2, int y2, unsigned int color);
+	void Circle(int x1, int y1, int radius, unsigned int color);
 	// attributes
 	unsigned int* pixels = 0;
 	unsigned int* depthBuffer = 0;

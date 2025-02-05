@@ -128,7 +128,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>$(SolutionDir)DiaDenstra\external\glad;$(SolutionDir)DiaDenstra\external\box2d\include;$(SolutionDir)DiaDenstra\external\glfw\include;$(SolutionDir)DiaDenstra\external\stb_image;$(SolutionDir)DiaDenstra\external\glm\;$(SolutionDir)DiaDenstra\source;$(SolutionDir)DiaDenstra\include;$(SolutionDir)DiaDenstra\external\predicates;$(SolutionDir)DiaDenstra\external\entt;$(SolutionDir)DiaDenstra\external\clipper\;$(SolutionDir)DiaDenstra\external\cdt</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)DiaDenstra\external\glad;$(SolutionDir)DiaDenstra\external\box2d\include;$(SolutionDir)DiaDenstra\external\glfw\include;$(SolutionDir)DiaDenstra\external\stb_image;$(SolutionDir)DiaDenstra\external\glm\;$(SolutionDir)DiaDenstra\source;$(SolutionDir)DiaDenstra\include;$(SolutionDir)DiaDenstra\external\predicates;$(SolutionDir)DiaDenstra\external\entt;$(SolutionDir)DiaDenstra\external\clipper\include\;$(SolutionDir)DiaDenstra\external\cdt</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -147,6 +147,7 @@
     <ClCompile Include="external\predicates\predicates.cpp" />
     <ClCompile Include="gamesystem.cpp" />
     <ClCompile Include="physics.cpp" />
+    <ClCompile Include="player.cpp" />
     <ClCompile Include="source\geometry2d.cpp" />
     <ClCompile Include="source\opengl.cpp" />
     <ClCompile Include="source\screen.cpp" />
@@ -173,6 +174,7 @@
     <ClInclude Include="include\spritetransform.h" />
     <ClInclude Include="input.hpp" />
     <ClInclude Include="physics.h" />
+    <ClInclude Include="player.h" />
     <ClInclude Include="tilemap.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

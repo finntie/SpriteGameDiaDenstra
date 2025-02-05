@@ -1,4 +1,5 @@
 #include "sprite.h"
+#include "player.h"
 #include "gamesystem.h" 
 
 #include "opengl.h"
@@ -14,43 +15,46 @@ entt::registry Registry;
 
 void gamesystem::init()
 {
+	playerObj = player();
 
 	tilemap::initTileMap("assets/tilemap/ground.png", "assets/tilemap/Map1.csv", "assets/tilemap/vertices.txt");
 
 	physics::Physics().init();
 	physics::Physics().createBodyMap();
 
-	Entity bodyEntity = Registry.create();
-	physics::Physics().createBodyBox(bodyEntity, physics::dynamicObj, { 340, 300 }, 100, 100);
-	bodyEntity = Registry.create();
 
-	physics::Physics().createBodyBox(bodyEntity, physics::dynamicObj, { 340, 300 }, 100, 100);
+	Entity spriteEntity = sprite::createSpriteToRegistry("assets/background.png", "BackGround", -1.0f, 1, { SCRWIDTH * 0.5f, SCRHEIGHT * 0.5f }, {1,1});
+	physics::Physics().drawOrder.push_back(spriteEntity); 
 
-	Entity spriteEntity = Registry.create();
-	auto& Sprite = CreateComponent<spriteStr>(spriteEntity);
-	Sprite.depth = 0.5f;
-	auto& transform = CreateComponent<Stransform>(spriteEntity);
-	transform.setScale(glm::vec2(1, 1));
-	transform.setTranslation(glm::vec2(100, 110));
-	transform.setRotation(0);
-	physics::Physics().createBodyBox(spriteEntity, physics::kinematic, { 460, 300 }, 100, 100);
-	sprite::initFromFile(&Sprite, "assets/Image7.png", 2, "Smile");
-	physics::Physics().drawOrder.push_back(spriteEntity);
-	
+	Entity playerEntity = playerObj.createOwnPlayer();
 
-	for (int i = 0; i < 25; i++)
-	{
-		spriteEntity = Registry.create();
-		auto& Sprite2 = CreateComponent<spriteStr>(spriteEntity);
-		Sprite2.depth = 10.0f;
-		auto& transform2 = CreateComponent<Stransform>(spriteEntity);
-		transform2.setScale(glm::vec2(1, 1));
-		transform2.setTranslation(glm::vec2(100 + i * 25, 100));
-		transform2.setRotation(0);
-		physics::Physics().createBodyBox(spriteEntity, physics::dynamicObj, { 460, 300 }, 100, 100);
-		sprite::initFromFile(&Sprite2, "assets/Image.png", 1, "NoTSmile");
-		physics::Physics().drawOrder.push_back(spriteEntity);
-	}
+	//Entity spriteEntity = sprite::createSpriteToRegistry("assets/Player.png", "Player", 5.0f, 1, { 480, 630 });
+	//auto& Sprite = Registry.get<spriteStr>(spriteEntity);
+	//Sprite.localSpriteTransform.setScale({ 0.5f, 0.5f });
+	//sprite::updateSpriteBuffer();
+	//auto& Player = CreateComponent<playerStr>(spriteEntity);
+	//physics::Physics().createBody(spriteEntity, physics::capsule, physics::dynamicObj, { 480, 630 }, { {0,15},{0,-15},{15,15} });
+	////physics::Physics().createBoxAroundSprite(spriteEntity, physics::dynamicObj);
+
+
+	physics::Physics().drawOrder.push_back(playerEntity);
+	physics::Physics().drawOrder.push_back(Registry.get<playerStr>(playerEntity).gunEntity);
+
+
+
+	playerEntity = player::createPlayerInstance();
+
+	physics::Physics().drawOrder.push_back(playerEntity);
+	//physics::Physics().drawOrder.push_back(Registry.get<playerStr>(playerEntity).gunEntity);
+
+
+
+	//for (int i = 0; i < 25; i++)
+	//{
+	//	Entity spriteEntity = sprite::createSpriteToRegistry("assets/Image.png", "OtherSmile", 1.0f, 1, { 460, 300 }, {1,1}, {30,30});
+	//	physics::Physics().createBoxAroundSprite(spriteEntity, physics::dynamicObj);
+	//	physics::Physics().drawOrder.push_back(spriteEntity);
+	//}
 
 	physics::Physics().sortSprites();
 
@@ -60,6 +64,7 @@ void gamesystem::init()
 
 void gamesystem::running(float dt)
 {
+	physics::Physics().update(dt);
 	test += dt;
 	//screenObj->Clear(sprite::colorVecToInt(glm::vec3(glm::sin(test), glm::cos(test), glm::sin(test))));
 	screenObj->Clear(0);
@@ -67,39 +72,16 @@ void gamesystem::running(float dt)
 	{
 		if (Sprite.name != "TileMapSprite")
 		{
-			transform.setVel({ 0, 0 });
-
 			//transform.setRotation(test * 30);
 			//transform.setScale(glm::vec2(glm::sin(test) + 4, glm::sin(test) + 4));
-
-			if (input::Input().getKeyDown(input::Key::ArrowUp))
-			{
-				transform.setVel({ 0, 1 });
-			}
-			if (input::Input().getKeyDown(input::Key::ArrowDown))
-			{
-				transform.setVel({ 0, -1 });
-
-			}
-			if (input::Input().getKeyDown(input::Key::ArrowRight))
-			{
-				//sprite::setFrameSprite(&Sprite, 0);
-				transform.setVel({ 1, 0 });
-
-			}
-			if (input::Input().getKeyDown(input::Key::ArrowLeft))
-			{
-				//sprite::setFrameSprite(&Sprite, 1);
-				transform.setVel({-1, 0 });
-			}
 		}
 		//printf("%f\n", glm::sin(test));
 	}
-	sprite::drawSprites(*screenObj);
+	sprite::updateSpriteBuffer();
+	playerObj.control(dt);
 
-	physics::Physics().drawTriangles(*screenObj);
+	physics::Physics().drawPolygons(*screenObj);
 	physics::Physics().drawBodies(*screenObj);
-	physics::Physics().update();
 }
 
 void gamesystem::drawSprites(Shader* shader)
@@ -109,7 +91,7 @@ void gamesystem::drawSprites(Shader* shader)
 		auto& Sprite = Registry.get<spriteStr>(Entity);
 		auto& transform = Registry.get<Stransform>(Entity);
 
-		if (Sprite.name != "TileMapSprite")
+		//if (Sprite.name != "TileMapSprite")
 		{
 
 			if (Sprite.bufferChanged)

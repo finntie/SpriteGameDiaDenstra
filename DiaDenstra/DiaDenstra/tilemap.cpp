@@ -37,9 +37,9 @@ void tilemap::initTileMap(const char* tileMapImageFile, const char* tileMapFile,
 	spriteStr& Sprite = CreateComponent<spriteStr>(spriteEntity);
 	Sprite.depth = 0.0f;
 	physics::Physics().drawOrder.push_back(spriteEntity);
-	auto& transform = CreateComponent<Stransform>(spriteEntity);
-	transform.setScale(glm::vec2(1.4, 1.12));
 	sprite::initEmpty(&Sprite, 1, "TileMapSprite", width * heightTile, height * heightTile); //Heighttile is the size of the tile
+	auto& transform = CreateComponent<Stransform>(spriteEntity);
+	transform.setTranslation({ Sprite.width * 0.5f, Sprite.height * 0.5f + (SCRHEIGHT - Sprite.height)});
 	float inverseSize = 1.0f / float(heightTile);
 
 	//Load temporarily buffer
@@ -144,9 +144,31 @@ void tilemap::initTileMap(const char* tileMapImageFile, const char* tileMapFile,
 	std::vector<glm::vec2> Binds = { {0,0}, {SCRWIDTH, 0}, {SCRWIDTH, SCRHEIGHT},{0, SCRHEIGHT } };
 	Bounds.push_back(Binds);
 
-	//Triangulate the tilemap and put it in the physics class.
-	triangulateArea(MapShapes, Bounds);
+	//Do some last checks with the polygons before sending it over
+	
+	//Checks for the polygons
+	for (size_t i = 0; i < MapShapes.size(); i++)
+	{
+		//Check if they are clockwise
+		if (!geometry2d::IsClockwise(MapShapes[i]))
+		{
+			std::reverse(MapShapes[i].begin(), MapShapes[i].end());
+		}
+		//Check if its the outside map, if so, put it in front.
+		if (i > 1)
+		{
+			//Check with random point against for polygon if point is inside it, if so, polygon 0 is the outline
+			if (!geometry2d::IsPointInsidePolygon(MapShapes[i][0], MapShapes[0]))
+			{
+				std::iter_swap(MapShapes.begin(), MapShapes.begin() + i); //Repeat until outline is in the front.
+			}
+		}
+	}
+	//Reverse first shape
+	std::reverse(MapShapes[0].begin(), MapShapes[0].end());
 
+	//Send it
+	physics::Physics().MapShapes = MapShapes;
 }
 
 int* tilemap::tileMapToArray(const char* tileMapFile, int& width, int& height)
@@ -262,110 +284,4 @@ std::vector<std::pair<glm::vec2, glm::vec2>> tilemap::verticesFileToArray(const 
 	return output;
 }
 
-void tilemap::triangulateArea(std::vector<std::vector<glm::vec2>> polygons, std::vector<std::vector<glm::vec2>> outsideArea)
-{
 
-	// Create triangulation, this will be passed into the registry.
-	CDT::Triangulation<double> t;
-
-	// Load path from file
-	Clipper2Lib::PathsD Path1;
-	Clipper2Lib::PathsD Path2;
-	Clipper2Lib::PathsD solution;
-
-	std::vector<CDT::V2d<double>> vertices;
-	CDT::EdgeVec edges;
-
-	//Checks for the polygons
-	for (size_t i = 0; i < polygons.size(); i++)
-	{
-		//Check if they are clockwise
-		if (!geometry2d::IsClockwise(polygons[i]))
-		{
-			std::reverse(polygons[i].begin(), polygons[i].end());
-		}
-		//Check if its the outside map, if so, put it in front.
-		if (i > 1)
-		{
-			//Check with random point against for polygon if point is inside it, if so, polygon 0 is the outline
-			if (!geometry2d::IsPointInsidePolygon(polygons[i][0], polygons[0]))
-			{
-				std::iter_swap(polygons.begin(), polygons.begin() + i); //Repeat until outline is in the front.
-			}
-		}
-	}
-	//Reverse first shape
-	std::reverse(polygons[0].begin(), polygons[0].end());
-
-	physics::Physics().MapShapes = polygons;
-
-	//Go back
-	std::reverse(polygons[0].begin(), polygons[0].end());
-
-	// Convert polygons to path2
-	for (size_t i = 0; i < polygons.size(); i++)
-	{
-
-		Clipper2Lib::PathD path;
-		for (size_t j = 0; j < polygons[i].size(); j++)
-		{
-			Clipper2Lib::PointD pointD(polygons[i][j].x, polygons[i][j].y);  // Convert glm::vec2 to PointD
-			path.push_back(pointD);
-		}
-		Path2.push_back(path);
-	}
-
-	// Convert outsideArea to path1
-	for (size_t i = 0; i < outsideArea.size(); i++)
-	{
-		if (geometry2d::IsClockwise(outsideArea[i]))
-		{
-			std::reverse(outsideArea[i].begin(), outsideArea[i].end());
-		}
-
-		Clipper2Lib::PathD path;
-		for (size_t j = 0; j < outsideArea[i].size(); j++)
-		{
-			Clipper2Lib::PointD pointD(outsideArea[i][j].x, outsideArea[i][j].y);  // Convert glm::vec2 to PointD
-			path.push_back(pointD);
-		}
-		Path1.push_back(path);
-	}
-
-	// get the difference of these two, this will remove the playing field
-	solution = Difference(Path1, Path2, Clipper2Lib::FillRule::NonZero);
-	//Remove the outline from Path2
-	Path2.erase(Path2.begin());
-	//Now union the result 
-	solution = Clipper2Lib::Union(solution, Path2, Clipper2Lib::FillRule::NonZero);
-
-	//Simplify?
-	solution = Clipper2Lib::SimplifyPaths(solution, 2.0);  
-
-	int n = 0;
-
-	// Add solution to CDT
-	for (int i = 0; i < int(solution.size()); i++)
-	{
-		for (int j = 0; j < int(solution[i].size()); j++)
-		{
-			n++;
-			vertices.push_back({ solution[i][j].x, solution[i][j].y });
-			if (j < int(solution[i].size()) - 1)
-			{
-				edges.push_back(CDT::Edge(n - 1, n));
-			}
-		}
-		edges.push_back(CDT::Edge(n - int(solution[i].size()), int(solution[i].size()) - 1 + n - int(solution[i].size())));
-	}
-
-	// Add edges and vertices and remove the outertriangles and holes
-	 RemoveDuplicatesAndRemapEdges(vertices, edges);
-	t.insertVertices(vertices);
-	t.insertEdges(edges);
-	t.eraseOuterTrianglesAndHoles();
-
-
-	physics::Physics().Triangles = t;
-
-}

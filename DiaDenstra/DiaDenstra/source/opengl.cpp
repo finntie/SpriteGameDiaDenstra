@@ -131,12 +131,12 @@ void DrawQuadSprite(Shader* shader, Stransform& transform, GLTexture* texture, s
 	{
 		// generate buffers
 		static const GLfloat verts[] = { 
-			0, 1, 0, 
+			-1, 1, 0, 
 			1, 1, 0, 
-			0, 0, 0, 
+			-1, -1, 0, 
 			1, 1, 0, 
-			0, 0, 0, 
-			1, 0, 0 };
+			-1, -1, 0, 
+			1, -1, 0 };
 		static const GLfloat uvdata[] = { 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1 };
 		static const GLfloat verts_igp[] = { 0, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0 };
 		static const GLfloat uvdata_igp[] = { -1, -1, 1, -1, -1, 1, 1, -1, -1, 1, 1, 1 };
@@ -162,7 +162,10 @@ void DrawQuadSprite(Shader* shader, Stransform& transform, GLTexture* texture, s
 	//Translate position
 	glm::mat4 model = glm::mat4(1);
 	model = glm::translate(model, glm::vec3(transform.getTranslation() - glm::vec2(Sprite->getAfterWidthDif(), Sprite->getAfterHeightDif()), 0.0f));
-	model = glm::scale(model, glm::vec3(texture->width, texture->height, 1.0f));
+	model = glm::rotate(model, transform.getRotation(), glm::vec3(0, 0, 1));
+	//----------------!!Scaling down everything by 0.5, this because the verts cover from -1 to 1 which is 2 times the scale!!-----------------------
+	model = glm::scale(model, glm::vec3(texture->width * transform.getScale().x * 0.5f, texture->height * transform.getScale().y * 0.5f, 1.0f));
+
 	shader->SetInputMatrix("model", model);
 
 	glBindVertexArray(vao);

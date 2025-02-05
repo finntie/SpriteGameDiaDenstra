@@ -2,51 +2,22 @@
 #include "sprite.h"
 #include <iostream>
 
-void  spritetransform::applyTransform(int& x, int& y, unsigned& color, bool useAvarageColor, std::pair<int,int>* fillPixels, spriteStr& Sprite, glm::vec2 scale, float rotation, glm::vec2 translation)
+void  spritetransform::applyTransform(int& x, int& y, std::pair<int,int>* fillPixels, spriteStr& Sprite, glm::vec2 scale, float rotation, glm::vec2 translation)
 {
 
 	//-------------------------------------Scaling------------------------------------------
 
 	//------X-------
-	int oldX = x;
-	float xRemaining = 0.0f;
 	if (scale.x != 1.0f)
 	{
 		//Get new x position in float
-		float xNew = float(x + 1) * scale.x;
-		//Get the remaining using round
-		xRemaining = xNew - std::round(xNew);
-		if (xRemaining != 0 && scale.x < 2.0f)
-		{
-			if (x != 0 && x != Sprite.width) //Bounds check
-			{
-				//multiply color by neighbouring pixel to get avarage of color.
-				//color = xRemaining > 0.0f ?
-				//	sprite::colorVecToInt((sprite::colorIntToVec(Sprite.buffer[(x - 1) + y * Sprite.width]) * (1.0f - xRemaining)) + (xRemaining * sprite::colorIntToVec(color))) :
-				//	sprite::colorVecToInt((sprite::colorIntToVec(Sprite.buffer[(x + 1) + y * Sprite.width]) * (1.0f + xRemaining)) + (xRemaining * -1) * sprite::colorIntToVec(color));
-			}
-		}
-		x = int(std::round(float(x + 1) * scale.x)) - 1;
+		x = int(((float(x + 1) * scale.x) - 1 * scale.x));
 	}
 	//-------Y-------
-	float yRemaining = 0.0f;
 	if (scale.y != 1.0f)
 	{
 		//Get new x position in float
-		float yNew = float(y + 1) * scale.y;
-		//Get the remaining using round
-		yRemaining = yNew - std::round(yNew);
-		if (yRemaining != 0 && scale.y < 2.0f)
-		{
-			if (y != 0 && y != Sprite.height) //Bounds check
-			{
-				//multiply color by neighbouring pixel to get avarage of color.
-				//color = yRemaining > 0.0f ?
-				//	sprite::colorVecToInt((sprite::colorIntToVec(Sprite.buffer[oldX + (y - 1) * Sprite.width]) * (1.0f - yRemaining)) + (yRemaining * sprite::colorIntToVec(color))) :
-				//	sprite::colorVecToInt((sprite::colorIntToVec(Sprite.buffer[oldX + (y + 1) * Sprite.width]) * (1.0f + yRemaining)) + (yRemaining * -1) * sprite::colorIntToVec(color));
-			}
-		}
-		y = int(std::round(float(y + 1) * scale.y)) - 1;
+		y = int(((float(y + 1) * scale.y) - 1 * scale.y));
 	}
 	
 	//Check if we skipped pixels, add those to the container

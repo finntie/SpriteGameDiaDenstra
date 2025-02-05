@@ -4,11 +4,13 @@
 #include "spritetransform.h"
 #include "screen.h"
 #include "sprite.h"
+#include "player.h"
 
 void physics::init()
 {
 	worldDef = b2DefaultWorldDef();
-	worldDef.gravity = { 0.0f, -10.0f };
+	worldDef.hitEventThreshold = 10.0f;
+	worldDef.gravity = { 0.0f, -9.81f };
 	worldId = b2CreateWorld(&worldDef);
 	
 }
@@ -18,13 +20,14 @@ void physics::init()
 void physics::createBodyMap()
 {
 	//from glm::vec2 to b2vec2
+	//Also dividing by 100 so that physics are not pixels to meters but pixels to centimeter.
 	std::vector<b2Vec2> MapShapeB2;
 	for (int i = 0; i < int(MapShapes.size()); i++)
 	{
 		MapShapeB2.clear();
 		for (int j = 0; j < int(MapShapes[i].size()); j++)
 		{
-			MapShapeB2.push_back({ MapShapes[i][j].x, SCRHEIGHT - MapShapes[i][j].y});
+			MapShapeB2.push_back({ MapShapes[i][j].x * INVERSECENTIMETER, (SCRHEIGHT - MapShapes[i][j].y) * INVERSECENTIMETER });
 		}
 		MapShapesB2.push_back(MapShapeB2);
 	}
@@ -37,7 +40,7 @@ void physics::createBodyMap()
 		b2BodyId BodyID = b2CreateBody(worldId, &BodyDef);
 		b2ChainDef chaindef = b2DefaultChainDef();
 		chaindef.isLoop = true;
-
+		chaindef.filter.categoryBits = ground;
 		chaindef.count = int(MapShapes[i].size());
 		chaindef.points = &MapShapesB2[i][0];
 		b2CreateChain(BodyID, &chaindef);
@@ -47,48 +50,82 @@ void physics::createBodyMap()
 
 
 
-void physics::createBody(Entity entity, shape Shape, type Type, glm::vec2 pos, std::vector<glm::vec2> points)
+void physics::createBody(const Entity& entity, const shape Shape, const type Type, glm::vec2 pos, std::vector<glm::vec2> points, categoryType category, categoryType mask )
 {
-	auto& bodyID = CreateComponent<b2BodyId>(entity);
+	//Convert Pos 
+	pos *= INVERSECENTIMETER;
 
-	if (Type == staticObj)
+	//Check if there already exists a body on this entity
+	b2BodyId* bodyID = nullptr;
+	bodyID = Registry.try_get<b2BodyId>(entity);
+
+	//If it does not exist, create a new one
+	if (bodyID == nullptr)
 	{
-		b2BodyDef groundBodyDef = b2DefaultBodyDef();
-		groundBodyDef.position = b2Vec2{ pos.x, pos.y };
-		bodyID = b2CreateBody(worldId, &groundBodyDef);
-		b2Polygon groundBox = b2MakeBox(50.0f, 10.0f);
-		b2ShapeDef groundShapeDef = b2DefaultShapeDef();
-		b2CreatePolygonShape(bodyID, &groundShapeDef, &groundBox);
-	}
-	else
-	{
+		bodyID = &CreateComponent<b2BodyId>(entity);
 		b2BodyDef bodyDef = b2DefaultBodyDef();
 		bodyDef.type = static_cast<b2BodyType>(Type);
 		bodyDef.position = b2Vec2{ pos.x, pos.y };
-		bodyID = b2CreateBody(worldId, &bodyDef);
-		b2ShapeDef shapeDef = b2DefaultShapeDef();
-		shapeDef.density = 1.0f;
-		shapeDef.friction = 0.3f;
-		//Create shape
+		bodyDef.fixedRotation = true;
+		bodyDef.linearDamping = 0.0f;
+		bodyDef.gravityScale = 10.0f; //Scale gravity lower
+		*bodyID = b2CreateBody(worldId, &bodyDef);
+	}
+
+	b2ShapeDef shapeDef = b2DefaultShapeDef();
+	shapeDef.density = 981.0f; //Humdan body density
+	shapeDef.friction = 0.0f;
+
+	if (category != none) shapeDef.filter.categoryBits = category; 
+	if (mask != none) shapeDef.filter.maskBits = mask;
+	
+	//Create shape
+	b2ShapeId shapeID;
+	if (Shape != circle && Shape != capsule)
+	{
 		b2Polygon bodyShape;
-		b2ShapeId shapeID;
-		if (Shape != circle)
+		//glm::vec2 to b2vec2 and convert
+		std::vector<b2Vec2> pointsb2;
+		for (int i = 0; i < int(points.size()); i++)
 		{
-			//glm::vec2 to b2vec2
-			std::vector<b2Vec2> pointsb2;
-			for (int i = 0; i < int(points.size()); i++)
-			{
-				pointsb2.push_back({points[i].x, points[i].y});
-			}
-
-
-			b2Hull CHull = b2ComputeHull(&pointsb2[0], int(pointsb2.size()));
-			bodyShape = b2MakePolygon(&CHull, 0.5f);
-			shapeID = b2CreatePolygonShape(bodyID, &shapeDef, &bodyShape);
+			pointsb2.push_back({ points[i].x * INVERSECENTIMETER, points[i].y * INVERSECENTIMETER });
 		}
 
-		b2CreatePolygonShape(bodyID, &shapeDef, &bodyShape);
+
+		b2Hull CHull = b2ComputeHull(&pointsb2[0], int(pointsb2.size()));
+		bodyShape = b2MakePolygon(&CHull, 0.005f);
+		bodyShape.radius = 0.005f; //Round edges
+		shapeID = b2CreatePolygonShape(*bodyID, &shapeDef, &bodyShape);
 	}
+	else if (Shape == capsule)
+	{
+		//glm::vec2 to b2vec2 and convert
+		std::vector<b2Vec2> pointsb2;
+		for (int i = 0; i < int(points.size()); i++)
+		{
+			pointsb2.push_back({ points[i].x * INVERSECENTIMETER, points[i].y * INVERSECENTIMETER });
+		}
+		b2Capsule bodyShape;
+		bodyShape.center1 = pointsb2[0];
+		bodyShape.center2 = pointsb2[1];
+		bodyShape.radius = pointsb2[2].x;
+		shapeID = b2CreateCapsuleShape(*bodyID, &shapeDef, &bodyShape);
+	}
+	else if (Shape == circle)
+	{
+		//glm::vec2 to b2vec2 and convert
+		std::vector<b2Vec2> pointsb2;
+		for (int i = 0; i < int(points.size()); i++)
+		{
+			pointsb2.push_back({ points[i].x * INVERSECENTIMETER, points[i].y * INVERSECENTIMETER });
+		}
+		b2Circle bodyShape;
+		bodyShape.center = pointsb2[0];
+		bodyShape.radius = pointsb2[1].x;
+		shapeID = b2CreateCircleShape(*bodyID, &shapeDef, &bodyShape);
+	}
+
+
 	//Pass bodyID to registry
 }
 
@@ -96,27 +133,322 @@ void physics::createBodyBox(Entity entity, type Type, glm::vec2 pos, float heigh
 {
 	height *= 0.5f;
 	width *= 0.5f;
-	createBody(entity, box, Type, pos, { {-width, height}, {-width, -height}, {width, -height}, {width, height} });//Counter clock-wise
+	createBody(entity, polygon, Type, pos, { {-width, height}, {-width, -height}, {width, -height}, {width, height} });//Counter clock-wise
 }
 
-void physics::update()
+void physics::createBoxAroundSprite(Entity entity, type Type)
 {
-	b2World_Step(worldId, timeStep, subStepCount);
-	for (const auto& [spriteEntity, body, transform, Sprite] : Registry.view<b2BodyId, Stransform, spriteStr>().each())
-	{
-		b2Vec2 pos = b2Body_GetPosition(body);
-		printf("x %f, y %f\n", pos.x, pos.y);
-		
-		
-		//Set position
-		transform.setTranslation({ pos.x - Sprite.getAfterWidth() * 0.5f, pos.y - Sprite.getAfterHeight() * 0.5f });
+	spriteStr* Sprite = nullptr;
+	Stransform* transform = nullptr;
+	Sprite = Registry.try_get<spriteStr>(entity);
+	transform = Registry.try_get<Stransform>(entity);
 
-		if (b2Body_GetType(body) == b2BodyType::b2_kinematicBody)
+	if (Sprite != nullptr && transform != nullptr)
+	{
+		float width =  float(Sprite->getAfterWidth()) * 0.5f;
+		float height = float(Sprite->getAfterHeight()) * 0.5f;
+		
+		createBody(entity, polygon, Type, transform->getTranslation(), {{-width, height}, {-width, -height}, {width, -height}, {width, height}});//Counter clock-wise
+	}
+	else
+	{
+		printf("Error: Tried creating bounding box for non-existing sprite/transform\n");
+	}
+}
+
+void physics::createSensor(const Entity entity, const categoryType type, const categoryType mask, glm::vec2 pos, float size, int& customID)
+{
+	b2BodyId* Body = nullptr;
+	Body = Registry.try_get<b2BodyId>(entity);
+
+	if (Body != nullptr)
+	{
+		b2Vec2 position = { pos.x * INVERSECENTIMETER, pos.y * INVERSECENTIMETER };
+
+		b2Polygon sensorShape = b2MakeOffsetBox(size * INVERSECENTIMETER * 0.5f, size * INVERSECENTIMETER * 0.5f, position, {1,1});
+		b2ShapeDef sensorDef = b2DefaultShapeDef();
+		sensorDef.isSensor = true;
+		sensorDef.filter.categoryBits = type;
+		sensorDef.filter.maskBits = mask; //Set mask so that only when hit this mask an event will be called
+		b2ShapeId shapeID = b2CreatePolygonShape(*Body, &sensorDef, &sensorShape); //Hopefully the shape is added and not overrun?	
+		customID = shapeID.index1;
+	}
+}
+
+
+void physics::attachJoint(const Entity entity1, const Entity entity2, float distance, glm::vec2 anchorPos1, glm::vec2 anchorPos2)
+{
+	b2BodyId* Body1 = nullptr;
+	b2BodyId* Body2 = nullptr;
+	Body1 = Registry.try_get<b2BodyId>(entity1);
+	Body2 = Registry.try_get<b2BodyId>(entity2);
+	
+
+	if (Body1 != nullptr && Body2 != nullptr)
+	{
+		b2DistanceJointDef jointDef = b2DefaultDistanceJointDef();
+		jointDef.bodyIdA = *Body1;
+		jointDef.bodyIdB = *Body2;
+		b2Vec2 APos1 = { anchorPos1.x * INVERSECENTIMETER, anchorPos1.y * INVERSECENTIMETER };
+		b2Vec2 APos2 = { anchorPos2.x * INVERSECENTIMETER, anchorPos2.y * INVERSECENTIMETER };
+		jointDef.localAnchorA = APos1;
+		jointDef.localAnchorB = APos2;
+		jointDef.length = distance * INVERSECENTIMETER;
+		b2JointId jointID = b2CreateDistanceJoint(worldId, &jointDef);
+	}
+}
+
+
+
+int2 physics::sensorTouchedBody(Entity entity, int customID, int& frameChecked, shape Shape)
+{
+	if (frameChecked == framePhysicsStep) return { 0,0 };
+
+	b2BodyId* Body = nullptr;
+	Body = Registry.try_get<b2BodyId>(entity);
+	if (Body != nullptr)
+	{
+		int2 output = { 0,0 };
+		frameChecked = framePhysicsStep;
+
+		b2ShapeId ShapeID;
+		if (!isSensor(*Body, customID, Shape, ShapeID))
 		{
-			
-			b2Body_SetLinearVelocity(body, { transform.getVel().x * 1000, transform.getVel().y * 1000 });
+			return { 0,0 };
+		}
+		b2SensorEvents sensorEvents = b2World_GetSensorEvents(b2Body_GetWorld(*Body));
+		
+		
+
+		for (int i = 0; i < sensorEvents.beginCount; ++i) //Loop over all sensor events
+		{
+			b2SensorBeginTouchEvent* beginTouch = sensorEvents.beginEvents + i; //Grab begin touch event
+
+			//Check if our sensor did anything
+			if (B2_ID_EQUALS(beginTouch->sensorShapeId, ShapeID)) //Checks index, worlds and revision
+			{
+				//If mask is set up correctly, this should indicate that we have begin touching.
+				b2ShapeType type = b2Shape_GetType(beginTouch->sensorShapeId);
+				output.x++;
+			}
+		}
+		for (int i = 0; i < sensorEvents.endCount; ++i) //Loop over all sensor events
+		{
+			//Also check if left body
+			b2SensorEndTouchEvent* endTouch = sensorEvents.endEvents + i; //Grab begin touch event
+
+			//Check if our sensor did anything
+			if (B2_ID_EQUALS(endTouch->sensorShapeId, ShapeID)) //Checks index, worlds and revision
+			{
+				//If mask is set up correctly, this should indicate that we have ended touching
+				b2ShapeType type = b2Shape_GetType(endTouch->sensorShapeId);
+				output.y++;
+			}
+		}
+		
+		return output;
+	}
+	return { 0,0 };
+}
+
+bool physics::isSensor(const b2BodyId& Body, const int customID, const shape Shape, b2ShapeId& ShapeID)
+{
+	//Try get shape
+	b2ShapeId Shapes[8]; //There probably won't be more than 8 shapes
+	int size = b2Body_GetShapes(Body, Shapes, 8);
+
+	//Loop over every shape to see if it is our shape
+	for (int i = 0; i < size; i++)
+	{
+		if (b2Shape_IsSensor(Shapes[i]) && b2Shape_GetType(Shapes[i]) == static_cast<b2ShapeType>(Shape) && Shapes[i].index1 == customID)
+		{
+			ShapeID = Shapes[i];
+			return true;
 		}
 	}
+
+	printf("Can't find sensor in specified entity\n");
+	return false;
+}
+
+bool physics::getHitEntity(Entity entity, Entity& outputEntity, int& frameChecked, bool& hitObject, uint64_t filter)
+{
+	hitObject = false;
+	if (frameChecked == framePhysicsStep) return false;
+
+	frameChecked = framePhysicsStep;
+
+	b2BodyId* Body = nullptr;
+	Body = Registry.try_get<b2BodyId>(entity);
+	if (Body != nullptr)
+	{
+		//printf("vel.x: %f\n", b2Body_GetLinearVelocity(*Body).x);
+
+
+		//Get shape
+		b2ShapeId Shapes[8]; //There probably won't be more than 8 shapes
+		int size = b2Body_GetShapes(*Body, Shapes, 8);
+		b2ContactEvents contactEvent = b2World_GetContactEvents(worldId);
+		b2BodyId Body2;
+		bool isShape = false;
+
+		for (int i = 0; i < contactEvent.hitCount; i++) //Loop over hit events
+		{
+			b2ContactHitEvent hitEvent = contactEvent.hitEvents[i]; //Get hit event
+			//Check if our body has a shape that hit
+			int j = 0;
+			while (j < size) //Loop over hit events
+			{
+				if (B2_ID_EQUALS(Shapes[j], hitEvent.shapeIdB))
+				{
+					isShape = true;
+					Body2 = b2Shape_GetBody(hitEvent.shapeIdA);
+					break;
+				}
+				j++;
+			}
+			if (isShape) //A shape of ours has an hit event
+			{
+				//Check if shape is one of our set filters using AND bit-operator
+				if (b2Shape_GetFilter(hitEvent.shapeIdA).categoryBits & filter) hitObject = true;				
+
+				//Check to which entity the other shape belongs
+				for (const auto& [objectEntity, transform, BodyCheck] : Registry.view<Stransform, b2BodyId>().each())
+				{
+					if (B2_ID_EQUALS(Body2, BodyCheck))
+					{
+						outputEntity = objectEntity;
+						return true;
+					}
+				}
+			}
+			else
+			{
+				outputEntity = Entity{};
+			}
+		}
+	}
+	return false;
+}
+
+void physics::setRotOfEntity(Entity entity, glm::vec2 dir)
+{
+	b2BodyId* Body = nullptr;
+	Body = Registry.try_get<b2BodyId>(entity);
+	if (Body != nullptr)
+	{
+		b2Body_SetAngularVelocity(*Body,  dir.x);
+	}
+
+}
+
+void physics::createBullet(Entity entity, glm::vec2 startPos, glm::vec2 dir, float speed, float size)
+{
+	//Shape is of course a circle
+
+	b2BodyId& bodyID = CreateComponent<b2BodyId>(entity);
+	b2BodyDef bodyDef = b2DefaultBodyDef();
+	bodyDef.type = b2_dynamicBody;
+	bodyDef.position = b2Vec2{ startPos.x * INVERSECENTIMETER, startPos.y * INVERSECENTIMETER };
+	bodyDef.fixedRotation = false;
+	bodyDef.isBullet = true;
+	//bodyDef.gravityScale = 0.3f; //Scale gravity lower
+	bodyDef.rotation.c = dir.x;
+	bodyDef.rotation.s = dir.y;
+	bodyID = b2CreateBody(worldId, &bodyDef);
+
+	b2ShapeDef shapeDef = b2DefaultShapeDef();
+	shapeDef.density = 1.8f;
+	shapeDef.friction = 0.0f;
+	//shapeDef.restitution = 1.0f;
+	shapeDef.filter.categoryBits = bullet;
+	shapeDef.filter.maskBits = ground | player;
+
+	//Create shape
+	b2ShapeId shapeID;
+
+	b2Circle bodyShape;
+	bodyShape.center = { 0,0 };
+	bodyShape.radius = size * INVERSECENTIMETER;
+	shapeID = b2CreateCircleShape(bodyID, &shapeDef, &bodyShape);
+	b2Shape_EnableHitEvents(shapeID, true); //Enable to receive hit events
+
+	//Add velocity to body
+	b2Body_ApplyLinearImpulseToCenter(bodyID, { dir.x * speed, dir.y * speed }, true);
+
+}
+
+void physics::destroyBody(Entity entity)
+{
+	b2BodyId* Body = nullptr;
+	Body = Registry.try_get<b2BodyId>(entity);
+	if (Body != nullptr)
+	{
+		b2DestroyBody(*Body);
+	}
+
+}
+
+void physics::update(float dt)
+{
+	timepast -= dt;
+	if (timepast <= 0.0f)
+	{
+		framePhysicsStep++; 
+		if (framePhysicsStep > (255 << 8)) framePhysicsStep = 0;
+		timepast = timeStep + timepast;
+		b2World_Step(worldId, timeStep, subStepCount);
+
+		for (const auto& [spriteEntity, body, transform, Sprite] : Registry.view<b2BodyId, Stransform, spriteStr>().each())
+		{
+
+			b2Vec2 pos = b2Body_GetPosition(body);
+			pos *= CENTIMETER;
+			//Set position to physics object
+			transform.setTranslation({ pos.x, pos.y });
+
+			//Set player physics
+			playerStr* Player = nullptr;
+			Player = Registry.try_get<playerStr>(spriteEntity);
+			if (Player != nullptr) //TODO: check if it our own player
+			{
+				b2Body_ApplyForceToCenter(body, { transform.getVel().x * 10000000, 0 }, true);
+				//Air velocity
+				b2Vec2 vel = b2Body_GetLinearVelocity(body);
+				float maxSpeed = 30.5f;
+				b2Body_SetLinearVelocity(body, { vel.x * 0.85f, vel.y > 0 ? vel.y * 0.95f : vel.y });
+				
+				//From ChatGPT.
+				if (fabs(vel.x) > maxSpeed) {
+					vel.x = (vel.x / fabs(vel.x)) * maxSpeed;
+					b2Body_SetLinearVelocity(body, vel);
+				}
+
+				//printf("X: %f, Y: %f \n", vel.x, vel.y);
+			//if (vel.x > 5.0f) b2Body_SetLinearVelocity(body, {5, vel.y });
+			//if (vel.x < -5.0f) b2Body_SetLinearVelocity(body, { -5, vel.y });
+
+			}
+		}
+
+	}
+}
+
+void physics::jump(Entity entity)
+{
+	b2BodyId* Body = nullptr;
+	Body = Registry.try_get<b2BodyId>(entity);
+	if (Body != nullptr)
+	{
+		
+		b2Body_SetLinearVelocity(*Body, { b2Body_GetLinearVelocity(*Body).x, 0.0f });
+		b2Body_ApplyLinearImpulseToCenter(*Body, { 0,800000 }, true);
+	}
+	else
+	{
+		printf("Player has no PhysicsBody\n");
+	}
+
 }
 
 void physics::sortSprites()
@@ -128,38 +460,63 @@ void physics::sortSprites()
 }
 
 
-void physics::drawTriangles(screen& screenObj)
+void physics::drawPolygons(screen& screenObj)
 {
-	//DebugDraw onto background 
-	for (int i = 0; i < int(Triangles.triangles.size()); i++)
+	for (int i = 0; i < int(MapShapes.size()); i++)
 	{
-		for (int j = 1; j < int(Triangles.triangles[i].vertices.size()); j++)
+		for (int j = 0; j < int(MapShapes[i].size()); j++)
 		{
-			screenObj.Line(float(Triangles.vertices[Triangles.triangles[i].vertices[j - 1]].x), float(Triangles.vertices[Triangles.triangles[i].vertices[j - 1]].y), float(Triangles.vertices[Triangles.triangles[i].vertices[j]].x), float(Triangles.vertices[Triangles.triangles[i].vertices[j]].y), (255 << 24) + 255);
+			screenObj.Line(MapShapes[i][j].x, MapShapes[i][j].y, MapShapes[i][(j + 1) % MapShapes[i].size()].x, MapShapes[i][(j + 1) % MapShapes[i].size()].y, (255 << 24) + 255);
 		}
-		screenObj.Line(float(Triangles.vertices[Triangles.triangles[i].vertices[2]].x), float(Triangles.vertices[Triangles.triangles[i].vertices[2]].y), float(Triangles.vertices[Triangles.triangles[i].vertices[0]].x), float(Triangles.vertices[Triangles.triangles[i].vertices[0]].y), (255 << 24) + 255);
-
-		//Engine.DebugRenderer().AddLine(
-		//	DebugCategory::Detailed,
-		//	glm::vec2(Triangles.vertices[Triangles.triangles[i].vertices[2]].x, Triangles.vertices[Triangles.triangles[i].vertices[2]].y),
-		//	glm::vec2(Triangles.vertices[Triangles.triangles[i].vertices[0]].x, Triangles.vertices[Triangles.triangles[i].vertices[0]].y),
-		//	glm::vec4(col, 1.0));
 	}
+	
 }
 
 void physics::drawBodies(screen& screenObj)
 {
-	for (const auto& [spriteEntity, bodies, transform ] : Registry.view<b2BodyId, Stransform>().each())
+	for (const auto& [spriteEntity, body, transform ] : Registry.view<b2BodyId, Stransform>().each())
 	{
-		b2Vec2 position = b2Body_GetPosition(bodies);
+		b2Vec2 position = b2Body_GetPosition(body);
+		position *= CENTIMETER;
 		//b2Rot rotation = b2Body_GetRotation(bodies);
 		//printf("%4.2f %4.2f %4.2f\n", position.x, position.y, b2Rot_GetAngle(rotation));
 
 		//Inverse y
 		position.y = SCRHEIGHT - position.y;
+		b2ShapeId Shapes[5];
+		int size = b2Body_GetShapes(body, Shapes, 5); 
+		b2ShapeType shapeType = b2Shape_GetType(Shapes[0]);
+
+		if (size != 0)
+		{
+			if (shapeType == b2_polygonShape)
+			{
+				//TODO: draw lines for each vertex instead of a box
+
+				b2Polygon polygon = b2Shape_GetPolygon(Shapes[0]);
+
+				b2Vec2 pos1 = polygon.vertices[0] * CENTIMETER + position;
+				b2Vec2 pos2 = polygon.vertices[2] * CENTIMETER + position;
+
+				screenObj.Box(int(pos1.x), int(pos1.y), int(pos2.x), int(pos2.y), (255 << 24) + (255 << 8));
+			}
+			else if (shapeType == b2_capsuleShape)
+			{
+				b2Capsule capsule = b2Shape_GetCapsule(Shapes[0]);
+				b2Vec2 pos1 = capsule.center1 * CENTIMETER + position;
+				b2Vec2 pos2 = capsule.center2 * CENTIMETER + position;
+				screenObj.Circle(int(pos1.x), int(pos1.y), int(capsule.radius * CENTIMETER), (255 << 24) + (255 << 8));
+				screenObj.Circle(int(pos2.x), int(pos2.y), int(capsule.radius * CENTIMETER), (255 << 24) + (255 << 8));
+
+			}
+			else if (shapeType == b2_circleShape)
+			{
+				b2Circle circle = b2Shape_GetCircle(Shapes[0]);
+				b2Vec2 pos1 = circle.center * CENTIMETER + position;
+				screenObj.Circle(int(pos1.x), int(pos1.y), int(circle.radius * CENTIMETER), (255 << 24) + (255 << 8));
 
 
-		float boxSize = 50.0f;
-		screenObj.Box(int(position.x - boxSize), int(position.y - boxSize), int(position.x + boxSize), int(position.y + boxSize), (255 << 24) + (255 << 8));
+			}
+		}
 	}
 }

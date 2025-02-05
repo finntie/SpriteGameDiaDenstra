@@ -88,6 +88,8 @@ void screen::Box(int x1, int y1, int x2, int y2, unsigned int c)
 	Line((float)x1, (float)y1, (float)x1, (float)y2, c);
 }
 
+
+
 void screen::Bar(int x1, int y1, int x2, int y2, unsigned int c)
 {
 	// clipping
@@ -102,6 +104,34 @@ void screen::Bar(int x1, int y1, int x2, int y2, unsigned int c)
 		for (int x = 0; x <= (x2 - x1); x++) a[x] = c;
 		a += width;
 	}
+}
+
+void screen::Circle(int x1, int y1, int radius, unsigned int color)
+{
+	//Just places 8 points around the middle point
+#if 0
+	const int PreCompDegrees = int(0.7071f * float(radius));
+	Plot(x1, y1 + radius, color);
+	Plot(x1 + PreCompDegrees, y1 + PreCompDegrees, color);
+	Plot(x1 + radius, y1, color);
+	Plot(x1 + PreCompDegrees, y1 - PreCompDegrees, color);
+	Plot(x1, y1 - radius, color);
+	Plot(x1 - PreCompDegrees, y1 - PreCompDegrees, color);
+	Plot(x1 - radius, y1, color);
+	Plot(x1 - PreCompDegrees, y1 + PreCompDegrees, color);
+
+#else
+	//OR lines between them
+	const float PreCompDegrees = 0.7071f * float(radius);
+	Line(float(x1), float(y1) + float(radius), float(x1) + PreCompDegrees, float(y1) + PreCompDegrees, color);
+	Line(float(x1) + PreCompDegrees, float(y1) + PreCompDegrees, float(x1) + float(radius), float(y1), color);
+	Line(float(x1) + float(radius), float(y1), float(x1) + PreCompDegrees, float(y1) - PreCompDegrees, color);
+	Line(float(x1) + PreCompDegrees, float(y1) - PreCompDegrees, float(x1), float(y1) - float(radius), color);
+	Line(float(x1), float(y1) - float(radius), float(x1) - PreCompDegrees, float(y1) - PreCompDegrees, color);
+	Line(float(x1) - PreCompDegrees, float(y1) - PreCompDegrees, float(x1) - float(radius), float(y1), color);
+	Line(float(x1) - float(radius), float(y1), float(x1) - PreCompDegrees, float(y1) + PreCompDegrees, color);
+	Line(float(x1) - PreCompDegrees, float(y1) + PreCompDegrees, float(x1), float(y1) + float(radius), color);
+#endif
 }
 
 // screen::Print: Print some text with the hard-coded mini-font.
