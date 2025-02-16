@@ -13,6 +13,7 @@ public:
 
 	static void initTileMap(const char* tileMapImageFile, const char* tileMapFile, const char* vertexPossesFile);
 
+	static std::vector<glm::vec2> initSpawnLocations(const char* spawnLocationFile, const char* tileMapImageFile);
 
 private:
 

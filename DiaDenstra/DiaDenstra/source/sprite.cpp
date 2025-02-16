@@ -93,7 +93,7 @@ void sprite::initEmpty(spriteStr* Sprite, const int frames, const char* name, in
 	{
 		for (int x = 0; x < Sprite->width; x++)
 		{
-			Sprite->afterBuffer[x + y * Sprite->width] = Sprite->buffer[(x + frameOffset) + y * frameOffset];
+			Sprite->afterBuffer[x + y * Sprite->width] = Sprite->buffer[x + y * frameOffset];
 		}
 	}
 	//Create Texture
@@ -107,107 +107,116 @@ void sprite::emptySprite(spriteStr* Sprite, glm::vec4 color)
 }
 
 
+void sprite::updateIndividualSpriteBuffer(spriteStr& Sprite)
+{
+	Stransform& transform = Sprite.localSpriteTransform;
+
+	//Check if scale or rotation changed
+	if (transform.scaleChanged || transform.rotationChanged || Sprite.frameChanged || Sprite.brightnessChanged || Sprite.forceBufferChange)
+	{
+		Sprite.bufferChanged = true;
+		float rot = transform.getRotation();
+		glm::vec2 scale = transform.getScale();
+
+
+		//Due to rotation, the sprite can increase in width and height
+		if (rot != 0)
+		{
+			//Size = w * cos(n) + h * sin(n)
+			Sprite.afterWidth = int(ceil((Sprite.width * scale.x) * std::abs(glm::cos(rot)) + (Sprite.height * scale.y) * std::abs(glm::sin(rot)))) + 2;
+			Sprite.afterHeight = int(ceil((Sprite.width * scale.x) * std::abs(glm::sin(rot)) + (Sprite.height * scale.y) * std::abs(glm::cos(rot)))) + 2;
+			//Also add + 2 to add extra space (needed)
+		}
+		else
+		{
+			Sprite.afterWidth = int(0.5f + (Sprite.width * scale.x));
+			Sprite.afterHeight = int(0.5f + (Sprite.height * scale.y));
+		}
+		int newSizeBuffer = Sprite.afterWidth * Sprite.afterHeight;
+
+		if (newSizeBuffer != Sprite.AfterBufferSize)
+		{
+			//Change size
+			if (Sprite.AfterBufferSize != 0)
+			{
+				delete[] Sprite.afterBuffer; //Dont forget to delete the old one.
+				Sprite.afterBuffer = nullptr;
+			}
+			Sprite.afterBuffer = new unsigned int[newSizeBuffer];
+			Sprite.AfterBufferSize = newSizeBuffer;
+		}
+		//Clear buffer first
+		for (int i = 0; i < Sprite.afterHeight * Sprite.afterWidth; i++)
+		{
+			Sprite.afterBuffer[i] = 0;
+		}
+
+		//Fill this buffer
+		float offset = scale.x > scale.y ? scale.x * 0.42f : scale.y * 0.42f;
+		glm::vec2 trans = { offset,offset };//Fill translation with max rotation offset.
+		int maxAmountPixels = int(ceil(scale.x) * ceil(scale.y) + 1);
+		std::pair<int, int>* fillPixelArray = new std::pair<int, int>[maxAmountPixels];
+
+		for (int y = 0; y < Sprite.height; y++)
+		{
+			for (int x = 0; x < Sprite.width; x++)
+			{
+				//Get the transformed pixel
+				int Bx = x, By = y;
+				unsigned color = Sprite.buffer[(x + Sprite.width * Sprite.currentFrame) + y * Sprite.width * Sprite.maxFrames];
+				spritetransform::applyTransform(Bx, By, fillPixelArray, Sprite, scale, rot, trans);
+				for (int i = 1; i < fillPixelArray[0].first; i++) //Loop over all the pixels
+				{
+					int Px = fillPixelArray[i].first;
+					int Py = fillPixelArray[i].second;
+					//Translate due to rotation.
+					if (rot != 0)
+					{
+						Sprite.afterWidthDifference = int(0.5f + ((float(Sprite.afterWidth) - float(Sprite.width) * transform.getScale().x) * 0.5f));
+						Sprite.afterHeightDifference = int(0.5f + ((float(Sprite.afterHeight) - float(Sprite.height) * transform.getScale().y) * 0.5f));
+						Px += Sprite.afterWidthDifference;
+						Py += Sprite.afterHeightDifference;
+					}
+
+					//Fill the array
+					if (Px < 0 || Py < 0 || Px >= Sprite.afterWidth || Py >= Sprite.afterHeight)
+					{
+						printf("Image drawn outside bounds, should not happen\n");
+					}
+					else Sprite.afterBuffer[Px + Py * Sprite.afterWidth] = color;
+				}
+			}
+		}
+		//Now we want to fill in the pixels when rotated, because of the rotation, we could have gaps
+		if (transform.rotationChanged)
+		{
+			spritetransform::fillRotateGaps(Sprite, rot, scale);
+		}
+
+		brightenSprite(&Sprite);
+
+
+		transform.scaleChanged = false;
+		transform.rotationChanged = false;
+		Sprite.frameChanged = false;
+		Sprite.forceBufferChange = false;
+
+		delete[] fillPixelArray;
+
+
+		//change the texture to the vector
+		delete Sprite.texture;
+		Sprite.texture = nullptr;
+		Sprite.texture = new GLTexture(Sprite.afterWidth, Sprite.afterHeight, GLTexture::DEFAULT);
+
+	}
+}
+
 void sprite::updateSpriteBuffer()
 {
 	for (const auto& [spriteEntity, Sprite] : Registry.view<spriteStr>().each())
 	{
-		Stransform& transform = Sprite.localSpriteTransform;
-
-		//Check if scale or rotation changed
-		if (transform.scaleChanged || transform.rotationChanged || Sprite.frameChanged)
-		{
-			Sprite.bufferChanged = true;
-			float rot = transform.getRotation();
-			glm::vec2 scale = transform.getScale();
-
-
-			//Due to rotation, the sprite can increase in width and height
-			if (rot != 0)
-			{
-				//Size = w * cos(n) + h * sin(n)
-				Sprite.afterWidth =  int(ceil((Sprite.width * scale.x) * std::abs(glm::cos(rot)) + (Sprite.height * scale.y) * std::abs(glm::sin(rot)))) + 2;
-				Sprite.afterHeight = int(ceil((Sprite.width * scale.x) * std::abs(glm::sin(rot)) + (Sprite.height * scale.y) * std::abs(glm::cos(rot)))) + 2;
-				//Also add + 2 to add extra space (needed)
-			}
-			else
-			{
-				Sprite.afterWidth = int(0.5f + (Sprite.width * scale.x));
-				Sprite.afterHeight = int(0.5f + (Sprite.height * scale.y));
-			}
-			int newSizeBuffer = Sprite.afterWidth * Sprite.afterHeight;
-
-			if (newSizeBuffer != Sprite.AfterBufferSize)
-			{
-				//Change size
-				if (Sprite.AfterBufferSize != 0)
-				{
-					delete[] Sprite.afterBuffer; //Dont forget to delete the old one.
-					Sprite.afterBuffer = nullptr;
-				}
-				Sprite.afterBuffer = new unsigned int[newSizeBuffer];
-				Sprite.AfterBufferSize = newSizeBuffer;
-			}
-			//Clear buffer first
-			for (int i = 0; i < Sprite.afterHeight * Sprite.afterWidth; i++)
-			{
-				Sprite.afterBuffer[i] = 0;
-			}
-
-			//Fill this buffer
-			float offset = scale.x > scale.y ? scale.x * 0.42f : scale.y * 0.42f;
-			glm::vec2 trans = { offset,offset };//Fill translation with max rotation offset.
-			int maxAmountPixels = int(ceil(scale.x) * ceil(scale.y) + 1);
-			std::pair<int, int>* fillPixelArray = new std::pair<int, int>[maxAmountPixels];
-			
-			for (int y = 0; y < Sprite.height; y++)
-			{
-				for (int x = 0; x < Sprite.width; x++)
-				{
-					//Get the transformed pixel
-					int Bx = x, By = y;
-					unsigned color = Sprite.buffer[(x + Sprite.width * Sprite.currentFrame) + y * Sprite.width * Sprite.maxFrames];
-					spritetransform::applyTransform(Bx, By, fillPixelArray, Sprite, scale, rot, trans);
-					for (int i = 1; i < fillPixelArray[0].first; i++) //Loop over all the pixels
-					{
-						int Px = fillPixelArray[i].first;
-						int Py = fillPixelArray[i].second;
-						//Translate due to rotation.
-						if (rot != 0)
-						{
-							Sprite.afterWidthDifference = int(0.5f + ((float(Sprite.afterWidth) - float(Sprite.width) * transform.getScale().x) * 0.5f));
-							Sprite.afterHeightDifference = int(0.5f + ((float(Sprite.afterHeight) - float(Sprite.height) * transform.getScale().y) * 0.5f));
-							Px += Sprite.afterWidthDifference;
-							Py += Sprite.afterHeightDifference;
-						}
-
-						//Fill the array
-						if (Px < 0 || Py < 0 || Px >= Sprite.afterWidth || Py >= Sprite.afterHeight)
-						{
-							printf("Image drawn outside bounds, should not happen\n");
-						}
-						else Sprite.afterBuffer[Px + Py * Sprite.afterWidth] = color;
-					}
-				}
-			}
-			//Now we want to fill in the pixels when rotated, because of the rotation, we could have gaps
-			if (transform.rotationChanged)
-			{
-				spritetransform::fillRotateGaps(Sprite, rot, scale);
-			}
-
-			transform.scaleChanged = false;
-			transform.rotationChanged = false;
-			Sprite.frameChanged = false;
-
-			delete[] fillPixelArray;
-
-
-			//change the texture to the vector
-			delete Sprite.texture;
-			Sprite.texture = nullptr;
-			Sprite.texture = new GLTexture(Sprite.afterWidth, Sprite.afterHeight, GLTexture::DEFAULT);
-
-		}
+		updateIndividualSpriteBuffer(Sprite);
 	}
 }
 
@@ -247,6 +256,35 @@ Entity sprite::createSpriteToRegistry(const char* file, const char* name, float 
 	transform.setRotation(rotation); 
 	updateSpriteBuffer();
 	return spriteEntity;
+}
+
+void sprite::setBrightenSprite(spriteStr* Sprite, int BA)
+{
+	if (Sprite->brightened != BA)Sprite->brightened = BA;
+	else return; //Already brightened
+	Sprite->brightnessChanged = true;
+}
+
+void sprite::brightenSprite(spriteStr* Sprite)
+{
+	//Loop over afterbuffer and make it brighter
+	int BA = Sprite->brightened;
+	int s = Sprite->afterHeight * Sprite->afterWidth;
+	for (int i = 0; i < s; i++)
+	{
+		unsigned color = Sprite->afterBuffer[i];
+		int colorArray[4];
+		colorArray[0] = int((color >> 24) & 0xFF);
+		colorArray[1] = int((color >> 16) & 0xFF) + BA;
+		colorArray[1] = colorArray[1] > 255 ? 255 : colorArray[1];
+		colorArray[2] = int((color >> 8) & 0xFF) + BA;
+		colorArray[2] = colorArray[2] > 255 ? 255 : colorArray[2];
+		colorArray[3] = int(color & 0xFF) + BA;
+		colorArray[3] = colorArray[3] > 255 ? 255 : colorArray[3];
+		Sprite->afterBuffer[i] = (unsigned(colorArray[0]) << 24) + (unsigned(colorArray[1]) << 16) + (unsigned(colorArray[2]) << 8) + unsigned(colorArray[3]);
+	}
+	Sprite->brightnessChanged = false;
+
 }
 
 void sprite::colorIntToArray(unsigned int color, float* colorArray)

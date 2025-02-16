@@ -8,25 +8,43 @@ void  spritetransform::applyTransform(int& x, int& y, std::pair<int,int>* fillPi
 	//-------------------------------------Scaling------------------------------------------
 
 	//------X-------
+	int oldX = x;
 	if (scale.x != 1.0f)
 	{
 		//Get new x position in float
-		x = int(((float(x + 1) * scale.x) - 1 * scale.x));
+		x = int(((float(x + 1) * scale.x))+0.5f) - 1;
 	}
 	//-------Y-------
+	int oldY = y;
 	if (scale.y != 1.0f)
 	{
 		//Get new x position in float
-		y = int(((float(y + 1) * scale.y) - 1 * scale.y));
+		y = int(((float(y + 1) * scale.y))+0.5f) - 1;
 	}
 	
 	//Check if we skipped pixels, add those to the container
 	int ArrayIndex = 1;
-	int loopyR = nearbyint(scale.y) != 0 ? int(nearbyint(scale.y)) : 1;
-	int loopxR = nearbyint(scale.x) != 0 ? int(nearbyint(scale.x)) : 1;
-	for (int yR = 0; yR < loopyR; yR++) //Add the + 1 so we always will loop at least once
+
+
+	float decimalX = (float(oldX + 1) * scale.x) - int(float(oldX + 1) * scale.x);
+	//First check if decimal is greater than 0.5, only than we may skip a pixel
+	//Than we check if decimal - scale.x decimal is smaller than 0.5. To check if previously we did not skip.
+	//Example: int(0.8f + 0.5f) * (-1 * floor(0.8f - (1.2f - int(1.2f)) - 0.5f)
+	//Becomes: 1 * (-1 * floor(0.8f - (0.2f) - 0.5f)
+	//Becomes: 1 * (-1 * 0.0) == 0
+	//This means that it is greater than 0.5, but it did skip a pixel previously
+	int extraX = int(decimalX + 0.5f) * int(-1 * std::floor(decimalX - (scale.x - int(scale.x)) - 0.5f));
+	extraX += int(scale.x) - 1; //Add scale (2.6 always skips 1) 
+
+	//Same for y
+	float decimalY = (float(oldY + 1) * scale.y) - int(float(oldY + 1) * scale.y);
+	int extraY = int(decimalY + 0.5f) * int(-1 * std::floor(decimalY - (scale.y - int(scale.y)) - 0.5f));
+	extraY += int(scale.y) - 1; //Add scale (2.6 always skips 1) 
+
+
+	for (int yR = 0; yR < extraY + 1; yR++) //Add the + 1 so we always will loop at least once
 	{
-		for (int xR = 0; xR < loopxR; xR++)
+		for (int xR = 0; xR < extraX + 1; xR++)
 		{
 			fillPixels[ArrayIndex].first = x - xR;
 			fillPixels[ArrayIndex].second = y - yR;

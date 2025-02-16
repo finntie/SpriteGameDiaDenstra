@@ -171,6 +171,32 @@ void tilemap::initTileMap(const char* tileMapImageFile, const char* tileMapFile,
 	physics::Physics().MapShapes = MapShapes;
 }
 
+std::vector<glm::vec2> tilemap::initSpawnLocations(const char* spawnLocationFile, const char* tileMapImageFile)
+{
+	int width = 0, height = 0;
+	int* tileMap = tileMapToArray(spawnLocationFile, width, height); //Fill tilemap 
+
+	int widthTile = 0, heightTile = 0;
+	int n;
+	unsigned char* data = stbi_load(tileMapImageFile, &widthTile, &heightTile, &n, 0);
+	if (!data) { printf("error loading file\n"); return std::vector<glm::vec2>(); } // load failed
+
+	std::vector<glm::vec2> output{};
+
+	for (int y = 0; y < height; y++)
+	{
+		for (int x = 0; x < width; x++)
+		{
+			if (tileMap[x + y * width] != -1)
+			{
+				//Player spawn tile
+				output.push_back(glm::vec2(x * heightTile, SCRHEIGHT - y * heightTile));
+			}
+		}
+	}
+	return output;
+}
+
 int* tilemap::tileMapToArray(const char* tileMapFile, int& width, int& height)
 {
 	width = 0;

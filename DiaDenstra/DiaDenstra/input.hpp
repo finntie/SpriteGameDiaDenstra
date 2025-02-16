@@ -149,8 +149,24 @@ public:
 
 	void update()
 	{
+       for (int i = 0; i < keysChangedAmount; i++)
+       {
+           keystateChanged[i] = 0;
+       }
+       keysChangedAmount = 0;
+
 		for (int i = 0; i < 350; i++)
 		{
+            if (currentKeystate[i] != keystateAction[i] && keystateAction[i] == 1)
+            {
+                keystateChanged[keysChangedAmount++] = i;
+            }
+
+            if (keystateAction[i] == 1)
+            {
+                int breakpoint = 2;
+                breakpoint = 1;
+            }
 			previousKeystate[i] = currentKeystate[i];
 			currentKeystate[i] = keystateAction[i]; 
 		}
@@ -161,11 +177,11 @@ public:
 		}
 	}
 
-    bool getKeyDownOnce(Key key) { return currentKeystate[static_cast<int>(key) & 349] && !previousKeystate[static_cast<int>(key) & 349]; }
-	bool getKeyDown(Key key) { return currentKeystate[static_cast<int>(key) & 349] && previousKeystate[static_cast<int>(key) & 349]; }
+    bool getKeyDownOnce(Key key) { return currentKeystate[static_cast<int>(key)] && !previousKeystate[static_cast<int>(key)]; }
+	bool getKeyDown(Key key) { return currentKeystate[static_cast<int>(key)] && previousKeystate[static_cast<int>(key)]; }
 
-	bool getMouseButtonOnce(MouseButton button) { return currentMousebuttonstate[static_cast<int>(button) & 7] && !previousMousebuttonstate[static_cast<int>(button) & 7]; }
-	bool getMouseButton(MouseButton button) { return currentMousebuttonstate[static_cast<int>(button) & 7] && previousMousebuttonstate[static_cast<int>(button) & 7]; }
+	bool getMouseButtonOnce(MouseButton button) { return currentMousebuttonstate[static_cast<int>(button)] && !previousMousebuttonstate[static_cast<int>(button)]; }
+	bool getMouseButton(MouseButton button) { return currentMousebuttonstate[static_cast<int>(button)] && previousMousebuttonstate[static_cast<int>(button)]; }
 
 	unsigned int keystateAction[350] = { 0 };
 	unsigned int currentKeystate[350] = { 0 };
@@ -174,6 +190,8 @@ public:
 	unsigned int previousMousebuttonstate[8] = { 0 };
 	unsigned int currentMousebuttonstate[8] = { 0 };
 
+    unsigned int keystateChanged[16] = { 0 }; //Array of which keys changed in one frame.
+    int keysChangedAmount = 0;
 	float mouseScroll = 0.0f;
 	glm::vec2 mousePos = { 0.0f, 0.0f };
 

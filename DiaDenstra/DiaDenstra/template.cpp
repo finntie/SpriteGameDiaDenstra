@@ -4,6 +4,7 @@
 
 
 
+#include "dance.h"
 
 #define _CRT_SECURE_NO_WARNINGS
 #include <opengl.h>
@@ -18,6 +19,9 @@
 #include "player.h"
 #include "gamesystem.h"
 #include "input.hpp"
+#include "camera.h"
+#include "ui.h"
+#include "register.hpp"
 
 #include <gtc/matrix_transform.hpp>
 #include <glm.hpp>
@@ -156,7 +160,6 @@ static GLTexture* renderTarget = 0;
 static int scrwidth = 0, scrheight = 0;
 bool IGP_detected = false;
 static gamesystem* GSystem = 0;
-static glm::mat4 projection = glm::mat4(1);
 
 unsigned int keystate[256] = { 0 }; //Not used
 
@@ -170,7 +173,7 @@ GLTexture* GetRenderTarget() { return renderTarget; }
 bool WindowHasFocus() { return hasFocus; }
 
 // provide access to key state array
-bool IsKeyDown( const unsigned int key ) { return keystate[key & 349] == 1; }
+bool IsKeyDown( const unsigned int key ) { return keystate[key] == 1; }
 
 // GLFW callbacks
 void InitRenderTarget( int w, int h )
@@ -187,16 +190,16 @@ void KeyEventCallback( GLFWwindow*, int key, int, int action, int )
 {
 	//Own implementation
 	if (key == GLFW_KEY_ESCAPE) running = false;
-	if (action == GLFW_PRESS) { input::Input().keystateAction[key & 349] = 1; }
-	else if (action == GLFW_RELEASE) { input::Input().keystateAction[key & 349] = 0; }
+   	if (action == GLFW_PRESS) {  input::Input().keystateAction[key] = 1; }
+	else if (action == GLFW_RELEASE) { input::Input().keystateAction[key] = 0; }
 }
 void CharEventCallback( GLFWwindow*, unsigned int ) { /* nothing here yet */ }
 void WindowFocusCallback( GLFWwindow*, int focused ) { hasFocus = (focused == GL_TRUE); }
 void MouseButtonCallback( GLFWwindow*, int button, int action, int )
 {
 	//Own implementation
-	if (action == GLFW_PRESS) { input::Input().mousebuttonstateAction[button & 7] = 1; }
-	else if (action == GLFW_RELEASE) { input::Input().mousebuttonstateAction[button & 7] = 0; }
+	if (action == GLFW_PRESS) { input::Input().mousebuttonstateAction[button] = 1; }
+	else if (action == GLFW_RELEASE) { input::Input().mousebuttonstateAction[button] = 0; }
 }
 void MouseScrollCallback( GLFWwindow*, double, double y )
 {
@@ -268,10 +271,14 @@ int main()
 #endif
 	// initialize application
 	InitRenderTarget( SCRWIDTH, SCRHEIGHT );
-	projection = glm::ortho(0.0f, float(SCRWIDTH), 0.0f, float(SCRHEIGHT), -1.0f, 1.0f);
 	screen* Screen = new screen(SCRWIDTH, SCRHEIGHT);
+	Dance* danceObj = new Dance();
 	GSystem = new gamesystem();
 	GSystem->screenObj = Screen;
+	GSystem->danceObj = danceObj;
+	Entity cameraEntity = Registry.create();
+	auto& camera1 = CreateComponent<cameraStr>(cameraEntity); //Set up camera
+
 	GSystem->init();
 	// done, enter main loop
 #if 0
@@ -467,7 +474,8 @@ int main()
 	static int frameNr = 0;
 	auto time = std::chrono::high_resolution_clock::now();
 	shader->Bind();
-	shader->SetInputMatrix("projection", projection);
+	shader->SetInputMatrix("view", camera1.projection);
+	shader->SetInputMatrix("view", camera1.view);
 	glm::mat4 modelMatrix = glm::mat4(1);
 	shader->SetInputMatrix("model", modelMatrix);
 	shader->Unbind();
@@ -485,15 +493,28 @@ int main()
 			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT);
 
+			//Update camera
+			for (const auto& [cameraEntity, cameraObj] : Registry.view<cameraStr>().each())
+			{
+				shader->Bind();
+				shader->SetInputMatrix("view", cameraObj.view);
+				shader->SetInputMatrix("projection", cameraObj.projection);
+				shader->Unbind();
+			}
+
 			//Also draw other sprites
 			GSystem->drawSprites(shader);
 
+			//Draw UI sprites (always on top)
+			ui::UI().update(shader);
+
 			//The screen buffer is more or less now my debug drawing buffer thus we draw it last
-			if (GSystem->screenObj) renderTarget->CopyFrom(GSystem->screenObj->pixels);
-			shader->Bind();
-			shader->SetInputTexture( 0, "c", renderTarget );
-			DrawQuad(shader);
-			shader->Unbind();
+			//if (GSystem->screenObj) renderTarget->CopyFrom(GSystem->screenObj->pixels);
+			//shader->Bind();
+			//shader->SetInputTexture( 0, "c", renderTarget );
+			//DrawQuad(shader);
+			//shader->Unbind();
+
 
 
 			glfwSwapBuffers( window );
@@ -501,9 +522,10 @@ int main()
 		}
 		if (!running) break;
 		time = ctime;
-		glfwSetWindowPos(window, 100, 100);
+		//glfwSetWindowPos(window, 100, 100);
 	}
 	// close down
+	delete danceObj;
 	GSystem->shutdown();
 	glfwDestroyWindow( window );
 	glfwTerminate();

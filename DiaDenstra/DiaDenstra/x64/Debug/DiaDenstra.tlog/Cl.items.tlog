@@ -1,3 +1,4 @@
+C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\camera.cpp;C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\x64\Debug\camera.obj
 C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\external\clipper\src\clipper.engine.cpp;C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\x64\Debug\clipper.engine.obj
 C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\external\clipper\src\clipper.offset.cpp;C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\x64\Debug\clipper.offset.obj
 C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\external\clipper\src\clipper.rectclip.cpp;C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\x64\Debug\clipper.rectclip.obj
@@ -6,9 +7,11 @@ C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\gamesystem.cpp;C:\OwnP
 C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\physics.cpp;C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\x64\Debug\physics.obj
 C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\player.cpp;C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\x64\Debug\player.obj
 C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\source\geometry2d.cpp;C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\x64\Debug\geometry2d.obj
+C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\source\dance.cpp;C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\x64\Debug\dance.obj
 C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\source\opengl.cpp;C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\x64\Debug\opengl.obj
 C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\source\screen.cpp;C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\x64\Debug\screen.obj
 C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\template.cpp;C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\x64\Debug\template.obj
 C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\source\sprite.cpp;C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\x64\Debug\sprite.obj
 C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\source\spritetransform.cpp;C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\x64\Debug\spritetransform.obj
 C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\tilemap.cpp;C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\x64\Debug\tilemap.obj
+C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\ui.cpp;C:\OwnPrograms\SpriteGameDiaDenstra\DiaDenstra\DiaDenstra\x64\Debug\ui.obj

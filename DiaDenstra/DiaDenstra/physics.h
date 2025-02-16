@@ -58,7 +58,8 @@ public:
 	/// <param name="points">Points that make up the shape, for capsule, points[0] is center1, points[1] is center2 and points[2].x is radius of capsule || for circle, its the same as capsule but without center 2.</param>
 	/// <param name="category">Give this body a category</param>
 	/// <param name="mask">Only collide with this category</param>
-	void createBody(const Entity& entity, const shape Shape, const type Type, glm::vec2 pos,  std::vector<glm::vec2> points, categoryType category = none, categoryType mask = none);
+	/// <param name="groupIdx">If two collided objects have the same idx, they don't collide: https://phaser.io/tutorials/box2d-tutorials/collision-filtering</param>
+	void createBody(const Entity& entity, const shape Shape, const type Type, glm::vec2 pos,  std::vector<glm::vec2> points, categoryType category = none, categoryType mask = none, const int groupIdx = 0);
 	//To Simplify createBody(). width and height will be total length (width 5, height 5 = 5x5 box)
 	void createBodyBox(Entity entity, type Type, glm::vec2 pos, float height, float width);
 	/// <summary>Automaticly creates a box around the sprite.</summary>
@@ -91,15 +92,26 @@ public:
 
 	void setRotOfEntity(Entity entity, glm::vec2 rotation);
 
-	void createBullet(Entity entity, glm::vec2 startPos, glm::vec2 dir, float speed, float size);
+	void createBullet(Entity entity, glm::vec2 startPos, glm::vec2 dir, float speed, float size, int playerNumber);
+
+	//If for example player is dead, it needs to be disabled and move away. Is expensive
+	void moveEntityOut(Entity entity);
+
+	//Enable body and move it to pos
+	void moveEntityIn(Entity entity, glm::vec2 pos);
 
 	void destroyBody(Entity entity);
+
+	//Only use with static or kinematic bodies, this will smoothly set the position using velocity
+	void setBodyPos(glm::vec2 pos, Entity entity, float dt);
 
 	void update(float dt);
 
 	void jump(Entity entity);
 
 	void sortSprites();
+
+	glm::vec2 getVelocity(Entity entity);
 
 	//Debug
 	void drawPolygons(screen& screenObj);
@@ -125,6 +137,10 @@ private:
 	std::vector<std::vector<glm::vec2>> MapShapes;
 	std::vector<std::vector<b2Vec2>> MapShapesB2;
 	int framePhysicsStep = -1; //We need a count for the physics step since it does not update at the same time as other functions do.
+	float setPosCooldown = 0.0f;
+
+	Entity entitiesUpdatedInFrame[32];
+	int entitiesUpdatedSize = 0;
 
 
 };

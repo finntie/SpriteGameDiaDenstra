@@ -141,6 +141,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="camera.cpp" />
     <ClCompile Include="external\clipper\src\clipper.engine.cpp" />
     <ClCompile Include="external\clipper\src\clipper.offset.cpp" />
     <ClCompile Include="external\clipper\src\clipper.rectclip.cpp" />
@@ -149,14 +150,17 @@
     <ClCompile Include="physics.cpp" />
     <ClCompile Include="player.cpp" />
     <ClCompile Include="source\geometry2d.cpp" />
+    <ClCompile Include="source\dance.cpp" />
     <ClCompile Include="source\opengl.cpp" />
     <ClCompile Include="source\screen.cpp" />
     <ClCompile Include="template.cpp" />
     <ClCompile Include="source\sprite.cpp" />
     <ClCompile Include="source\spritetransform.cpp" />
     <ClCompile Include="tilemap.cpp" />
+    <ClCompile Include="ui.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="camera.h" />
     <ClInclude Include="external\clipper\include\clipper2\clipper.core.h" />
     <ClInclude Include="external\clipper\include\clipper2\clipper.engine.h" />
     <ClInclude Include="external\clipper\include\clipper2\clipper.export.h" />
@@ -164,9 +168,11 @@
     <ClInclude Include="external\clipper\include\clipper2\clipper.minkowski.h" />
     <ClInclude Include="external\clipper\include\clipper2\clipper.offset.h" />
     <ClInclude Include="external\clipper\include\clipper2\clipper.rectclip.h" />
+    <ClInclude Include="extra.hpp" />
     <ClInclude Include="gamesystem.h" />
     <ClInclude Include="include\common.h" />
     <ClInclude Include="include\geometry2d.hpp" />
+    <ClInclude Include="include\dance.h" />
     <ClInclude Include="include\opengl.h" />
     <ClInclude Include="include\screen.h" />
     <ClInclude Include="include\register.hpp" />
@@ -176,6 +182,7 @@
     <ClInclude Include="physics.h" />
     <ClInclude Include="player.h" />
     <ClInclude Include="tilemap.h" />
+    <ClInclude Include="ui.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

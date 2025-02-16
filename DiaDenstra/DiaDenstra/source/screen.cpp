@@ -156,6 +156,28 @@ void screen::Print(const char* s, int x1, int y1, unsigned int c)
 	}
 }
 
+//Receive the buffer of printed hard-coded font
+void screen::ReceivePrint(const char* s, unsigned int* buffer, int bufferWidth, unsigned int c)
+{
+	if (!fontInitialized)
+	{
+		// we will initialize the font on first use
+		InitCharset();
+		fontInitialized = true;
+	}
+	unsigned int* t = buffer + 0 * bufferWidth;
+	for (int i = 0; i < (int)(strlen(s)); i++, t += 6)
+	{
+		int pos = 0;
+		if ((s[i] >= 'A') && (s[i] <= 'Z')) pos = transl[(unsigned short)(s[i] - ('A' - 'a'))];
+		else pos = transl[(unsigned short)s[i]];
+		unsigned int* a = t;
+		const char* u = (const char*)font[pos];
+		for (int v = 0; v < 5; v++, u++, a += bufferWidth)
+			for (int h = 0; h < 5; h++) if (*u++ == 'o') *(a + h) = c, * (a + h + bufferWidth) = 0;
+	}
+}
+
 // screen::Line: Draw a line between the specified screen coordinates.
 // Uses clipping for lines that are partially off-screen. Not efficient.
 void screen::Line(float x1, float y1, float x2, float y2, unsigned int c)
@@ -277,7 +299,8 @@ void screen::InitCharset()
 	SetChar(47, "::o::", "::o::", ":::::", ":::::", ":::::"); // Tnx Ferry
 	SetChar(48, "o:o:o", ":ooo:", "ooooo", ":ooo:", "o:o:o");
 	SetChar(49, "::::o", ":::o:", "::o::", ":o:::", "o::::");
-	char c[] = "abcdefghijklmnopqrstuvwxyz0123456789!?:=,.-() #'*/";
+	SetChar(50, "::o::", "::o::", "ooooo", "::o::", "::o::");
+	char c[] = "abcdefghijklmnopqrstuvwxyz0123456789!?:=,.-() #'*/+";
 	int i;
 	for (i = 0; i < 256; i++) transl[i] = 45;
 	for (i = 0; i < 50; i++) transl[(unsigned char)c[i]] = i;

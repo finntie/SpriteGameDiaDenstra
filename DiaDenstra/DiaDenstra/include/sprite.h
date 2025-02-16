@@ -15,7 +15,7 @@ public:
 	friend class spritetransform;
 	
 
-	const char* name = "None";
+	std::string name = "None"; //String...
 	unsigned int* buffer = nullptr;
 	unsigned int* afterBuffer = nullptr; //Buffer after all changes were made
 	int AfterBufferSize = 0;
@@ -26,7 +26,7 @@ public:
 	GLTexture* texture = nullptr;
 	int currentFrame = 0;
 	int maxFrames = 0;
-
+	bool forceBufferChange = false;
 	Stransform localSpriteTransform{}; //Transform for local buffer
 
 	const int getAfterWidthDif() { return afterWidthDifference; }
@@ -75,9 +75,11 @@ protected:
 	int afterWidth = 0;
 	int afterWidthDifference = 0;
 	int afterHeightDifference = 0;
+	int brightened = 0;
 
 	bool initializedBuffer = false;
 	bool frameChanged = true;
+	bool brightnessChanged = false;
 };
 
 class screen;
@@ -99,6 +101,8 @@ public:
 	/// <summary>Checks if the Sprites need to be changed, needs to be called every frame</summary>
 	static void updateSpriteBuffer();
 
+	static void updateIndividualSpriteBuffer(spriteStr& Sprite);
+
 	/// <summary>Changes local transform scale based on new width/height </summary>
 	/// <param name="Sprite">Sprite struct</param>
 	/// <param name="widht">new width in pixels</param>
@@ -119,11 +123,14 @@ public:
 	/// <returns></returns>
 	static Entity createSpriteToRegistry(const char* file, const char* name = "none", float depth = 0.0f, int frames = 1, glm::vec2 pos = { 0,0 }, glm::vec2 scale = { 1,1 }, glm::vec2 widthHeight = { 0,0 }, float rotation = 0);
 
+	static void setBrightenSprite(spriteStr* Sprite, int BrightnessAmount);
+
 	//Helper functions
 	static void colorIntToArray(unsigned int color, float* colorArray);
 	static unsigned int colorArrayToInt(float* colorArray);
 
 private:
 
+	static void brightenSprite(spriteStr* Sprite);
 };
 

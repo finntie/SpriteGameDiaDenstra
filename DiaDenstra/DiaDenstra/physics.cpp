@@ -50,11 +50,11 @@ void physics::createBodyMap()
 
 
 
-void physics::createBody(const Entity& entity, const shape Shape, const type Type, glm::vec2 pos, std::vector<glm::vec2> points, categoryType category, categoryType mask )
+void physics::createBody(const Entity& entity, const shape Shape, const type Type, glm::vec2 pos, std::vector<glm::vec2> points, categoryType category, categoryType mask, const int groupIdx)
 {
 	//Convert Pos 
 	pos *= INVERSECENTIMETER;
-
+	
 	//Check if there already exists a body on this entity
 	b2BodyId* bodyID = nullptr;
 	bodyID = Registry.try_get<b2BodyId>(entity);
@@ -78,7 +78,8 @@ void physics::createBody(const Entity& entity, const shape Shape, const type Typ
 
 	if (category != none) shapeDef.filter.categoryBits = category; 
 	if (mask != none) shapeDef.filter.maskBits = mask;
-	
+	if (groupIdx != -1) shapeDef.filter.groupIndex = groupIdx * -1;
+
 	//Create shape
 	b2ShapeId shapeID;
 	if (Shape != circle && Shape != capsule)
@@ -342,7 +343,7 @@ void physics::setRotOfEntity(Entity entity, glm::vec2 dir)
 
 }
 
-void physics::createBullet(Entity entity, glm::vec2 startPos, glm::vec2 dir, float speed, float size)
+void physics::createBullet(Entity entity, glm::vec2 startPos, glm::vec2 dir, float speed, float size, int playerNumber)
 {
 	//Shape is of course a circle
 
@@ -362,7 +363,8 @@ void physics::createBullet(Entity entity, glm::vec2 startPos, glm::vec2 dir, flo
 	shapeDef.friction = 0.0f;
 	//shapeDef.restitution = 1.0f;
 	shapeDef.filter.categoryBits = bullet;
-	shapeDef.filter.maskBits = ground | player;
+	shapeDef.filter.maskBits = ground | player | ownplayer; //Ownplayer because the groupfilter will mask out the own bullets
+	shapeDef.filter.groupIndex = playerNumber * -1;
 
 	//Create shape
 	b2ShapeId shapeID;
@@ -378,6 +380,28 @@ void physics::createBullet(Entity entity, glm::vec2 startPos, glm::vec2 dir, flo
 
 }
 
+void physics::moveEntityOut(Entity entity)
+{
+	b2BodyId* Body = nullptr;
+	Body = Registry.try_get<b2BodyId>(entity);
+	if (Body != nullptr)
+	{
+		b2Body_SetTransform(*Body, { -1000, -1000 }, b2Body_GetRotation(*Body));
+		b2Body_Disable(*Body);
+	}
+}
+
+void physics::moveEntityIn(Entity entity, glm::vec2 pos)
+{
+	b2BodyId* Body = nullptr;
+	Body = Registry.try_get<b2BodyId>(entity);
+	if (Body != nullptr)
+	{
+		b2Body_SetTransform(*Body, { pos.x * INVERSECENTIMETER, pos.y * INVERSECENTIMETER }, b2Body_GetRotation(*Body));
+		b2Body_Enable(*Body);
+	}
+}
+
 void physics::destroyBody(Entity entity)
 {
 	b2BodyId* Body = nullptr;
@@ -389,6 +413,35 @@ void physics::destroyBody(Entity entity)
 
 }
 
+void physics::setBodyPos(glm::vec2 pos, Entity entity, float dt)
+{
+	//Check if entity already is updated in this frame
+	int i = 0;
+	for (i; i < entitiesUpdatedSize; i++)
+	{
+		if (entity == entitiesUpdatedInFrame[i]) return;
+	}
+	if (entitiesUpdatedSize < 31)
+	{
+		entitiesUpdatedInFrame[i + 1] = entity;
+		entitiesUpdatedSize++;
+
+
+		b2BodyId* Body = nullptr;
+		Body = Registry.try_get<b2BodyId>(entity);
+		if (Body != nullptr)
+		{
+			b2Vec2 targetPosition = { pos.x * INVERSECENTIMETER, pos.y * INVERSECENTIMETER };
+
+			b2Body_SetTransform(*Body, targetPosition, b2Body_GetRotation(*Body));
+		}
+	}
+	else
+	{
+		printf("Issue: Max Enities Updated\n");
+	}
+}
+
 void physics::update(float dt)
 {
 	timepast -= dt;
@@ -398,6 +451,8 @@ void physics::update(float dt)
 		if (framePhysicsStep > (255 << 8)) framePhysicsStep = 0;
 		timepast = timeStep + timepast;
 		b2World_Step(worldId, timeStep, subStepCount);
+		entitiesUpdatedSize = 0;
+
 
 		for (const auto& [spriteEntity, body, transform, Sprite] : Registry.view<b2BodyId, Stransform, spriteStr>().each())
 		{
@@ -457,6 +512,19 @@ void physics::sortSprites()
 	{
 		return Registry.get<spriteStr>(a).depth < Registry.get<spriteStr>(b).depth; // Lower depth renders first
 	});
+}
+
+glm::vec2 physics::getVelocity(Entity entity)
+{
+	b2BodyId* Body = nullptr;
+	Body = Registry.try_get<b2BodyId>(entity);
+	if (Body != nullptr)
+	{
+		b2Vec2 vel = b2Body_GetLinearVelocity(*Body);
+		return { vel.x, vel.y };
+	}
+
+	return glm::vec2();
 }
 
 
