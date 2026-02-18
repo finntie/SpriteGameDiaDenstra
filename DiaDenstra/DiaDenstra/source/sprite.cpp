@@ -8,7 +8,7 @@
 #include <stb_image.h>
 
 
-void sprite::initFromFile(spriteStr* Sprite, const char* file, const int frames, const char* name)
+void sprite::initFromFile(spriteStr* Sprite, const char* file, const int frames, std::string name)
 {
 	// use stb_image to load the image file
 	int n;
@@ -212,11 +212,36 @@ void sprite::updateIndividualSpriteBuffer(spriteStr& Sprite)
 	}
 }
 
-void sprite::updateSpriteBuffer()
+void sprite::updateSpriteBuffer(float dt)
 {
 	for (const auto& [spriteEntity, Sprite] : Registry.view<spriteStr>().each())
 	{
 		updateIndividualSpriteBuffer(Sprite);
+	}
+	//Update particles
+	for (const auto& [spriteEntity, Particle] : Registry.view<spriteParticle>().each())
+	{
+		updateIndividualSpriteBuffer(Particle.Sprite);
+
+		Particle.timeSinceLastUpdate += dt;
+		if (Particle.timeSinceLastUpdate >= Particle.timePerFrame)
+		{
+			Particle.timeSinceLastUpdate = 0; //Just reset fully, its ok
+			Particle.Sprite.currentFrame++;
+			Particle.Sprite.frameChanged = true;
+			if (Particle.Sprite.currentFrame >= Particle.Sprite.maxFrames)
+			{
+				if (Particle.repeatsRemaining == 0) //Delete ourself
+				{
+					Registry.destroy(spriteEntity, 1);
+				}
+				else if (Particle.repeatsRemaining != -1)
+				{
+					Particle.repeatsRemaining--;
+					Particle.Sprite.currentFrame = 0;
+				}
+			}
+		}
 	}
 }
 
@@ -254,8 +279,26 @@ Entity sprite::createSpriteToRegistry(const char* file, const char* name, float 
 	transform.setScale(scale); 
 	transform.setTranslation(pos); 
 	transform.setRotation(rotation); 
-	updateSpriteBuffer();
+	updateSpriteBuffer(0);
 	return spriteEntity;
+}
+
+Entity sprite::createParticle(const char* file, int frames, int repeatTimes, float timePerFrame, glm::vec2 pos, glm::vec2 scale, float rotation)
+{
+	Entity spriteParticleEntity = Registry.create();
+	auto& Particle = CreateComponent<spriteParticle>(spriteParticleEntity);
+	Particle.Sprite.depth = 15.0f;
+	initFromFile(&Particle.Sprite, file, frames, "Particle");
+	Particle.repeatsRemaining = repeatTimes;
+	Particle.timePerFrame = timePerFrame;
+	Particle.timeSinceLastUpdate = 0.0f;
+
+	auto& transform = CreateComponent<Stransform>(spriteParticleEntity);
+	transform.setScale(scale);
+	transform.setTranslation(pos);
+	transform.setRotation(rotation);
+	updateSpriteBuffer(0);
+	return spriteParticleEntity;
 }
 
 void sprite::setBrightenSprite(spriteStr* Sprite, int BA)

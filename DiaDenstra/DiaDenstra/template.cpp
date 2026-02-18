@@ -4,7 +4,7 @@
 
 
 
-#include "dance.h"
+#include "networking/dance.h"
 
 #define _CRT_SECURE_NO_WARNINGS
 #include <opengl.h>
@@ -203,7 +203,7 @@ void MouseButtonCallback( GLFWwindow*, int button, int action, int )
 }
 void MouseScrollCallback( GLFWwindow*, double, double y )
 {
-	input::Input().mouseScroll = float(y);
+	input::Input().mouseScrollAction = float(y);
 }
 void MousePosCallback( GLFWwindow*, double x, double y )
 {
@@ -243,7 +243,7 @@ int main()
 	glfwSetCharCallback( window, CharEventCallback );
 	// initialize GLAD
 	if (!gladLoadGLLoader( (GLADloadproc)glfwGetProcAddress )) FatalError( "gladLoadGLLoader failed." );
-	glfwSwapInterval( 0 );
+	//glfwSwapInterval( 0 ); // Disabling VSYNC
 	// prepare OpenGL state
 	glDisable( GL_DEPTH_TEST );
 	glDisable( GL_CULL_FACE );
@@ -349,6 +349,8 @@ int main()
 #elif 1
 		// basic shader, no gamma correction
 	Shader* shader = new Shader("assets/Shaders/uber.vert", "assets/Shaders/uber.frag", false);
+	Shader* UIshader = new Shader("assets/Shaders/uiUber.vert", "assets/Shaders/uiUber.frag", false);
+
 #else
 	// fxaa shader
 	Shader* shader = new Shader(
@@ -474,18 +476,59 @@ int main()
 	static int frameNr = 0;
 	auto time = std::chrono::high_resolution_clock::now();
 	shader->Bind();
-	shader->SetInputMatrix("view", camera1.projection);
-	shader->SetInputMatrix("view", camera1.view);
-	glm::mat4 modelMatrix = glm::mat4(1);
-	shader->SetInputMatrix("model", modelMatrix);
+	{
+		shader->SetInputMatrix("projection", camera1.getProjection());
+		shader->SetInputMatrix("view", camera1.getView());
+		glm::mat4 modelMatrix = glm::mat4(1.0f);
+		shader->SetInputMatrix("model", modelMatrix);
+	}
 	shader->Unbind();
+
+	UIshader->Bind();
+	{
+		glm::mat4 projection = glm::ortho(0.0f, (float)SCRWIDTH, 0.0f, (float)SCRHEIGHT, -1.0f, 1.0f);
+		UIshader->SetInputMatrix("projection", projection);
+		glm::mat4 modelMatrix = glm::mat4(1.0f);
+		UIshader->SetInputMatrix("model", modelMatrix);
+	}
+	UIshader->Unbind();
+
+	//Set max and min fps for physics to not explode
+	const float maxFPS = 60;
+	const float minFPS = 5;
+
+	const float updateTime = 1.0f / maxFPS;
+	float currentUpdateTime = 0.0f;
+
 	while (!glfwWindowShouldClose( window ))
 	{
 		auto ctime = std::chrono::high_resolution_clock::now();
 		auto elapsed = ctime - time;
 		float deltaTime = (float)((double)std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count() / 1000000.0);
-		GSystem->running(deltaTime);
-		input::Input().update();
+		deltaTime = min(deltaTime, 1.0f / minFPS); // Make sure deltatime is not too large
+
+
+		// Cap FPS 
+		currentUpdateTime += deltaTime;
+		if (currentUpdateTime >= updateTime)
+		{
+			// We min to make sure that 'currentUpdateTime' is not big enough to loop another time without need of deltatime
+			// This is to ensure we are not accumulating frames for when fps suddenly decreases and we had some 'spare' frames left
+			currentUpdateTime = min(currentUpdateTime, updateTime * 2);
+			currentUpdateTime -= updateTime;
+
+			// Max deltatime to ensure it is correct with the update time
+			deltaTime = max(deltaTime, updateTime);
+			
+			// Input update is done within the capped fps, GLFW already collected all the inputs, so we are not missing any
+			input::Input().update();
+
+			ui::UI().updateLogic(); //Disable previous UI elements
+
+			//Actually run the game logic
+			GSystem->running(deltaTime);
+		}
+
 		// send the rendering result to the screen using OpenGL
 		if (frameNr++ > 1)
 		{
@@ -497,8 +540,8 @@ int main()
 			for (const auto& [cameraEntity, cameraObj] : Registry.view<cameraStr>().each())
 			{
 				shader->Bind();
-				shader->SetInputMatrix("view", cameraObj.view);
-				shader->SetInputMatrix("projection", cameraObj.projection);
+				shader->SetInputMatrix("view", cameraObj.getView());
+				shader->SetInputMatrix("projection", cameraObj.getProjection());
 				shader->Unbind();
 			}
 
@@ -506,7 +549,7 @@ int main()
 			GSystem->drawSprites(shader);
 
 			//Draw UI sprites (always on top)
-			ui::UI().update(shader);
+			ui::UI().update(UIshader, shader);
 
 			//The screen buffer is more or less now my debug drawing buffer thus we draw it last
 			//if (GSystem->screenObj) renderTarget->CopyFrom(GSystem->screenObj->pixels);

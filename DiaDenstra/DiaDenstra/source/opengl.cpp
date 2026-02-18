@@ -161,8 +161,48 @@ void DrawQuadSprite(Shader* shader, Stransform& transform, GLTexture* texture, s
 
 	//Translate position
 	glm::mat4 model = glm::mat4(1);
-	model = glm::translate(model, glm::vec3(transform.getTranslation() - glm::vec2(Sprite->getAfterWidthDif(), Sprite->getAfterHeightDif()), 0.0f));
-	model = glm::rotate(model, transform.getRotation(), glm::vec3(0, 0, 1));
+
+	glm::vec3 pos = glm::vec3(transform.getTranslation() - glm::vec2(Sprite->getAfterWidthDif(), Sprite->getAfterHeightDif()), 0.0f);
+	model = glm::translate(model, pos);
+
+	//Check for pivot
+	if (transform.getRotationPivot() != glm::vec2(0.5f, 0.5f))
+	{
+		glm::vec2 pivot = transform.getRotationPivot();
+		if (transform.getScale().y < 0)
+		{
+			pivot.y = pivot.y * -1 + 1;
+		}
+		if (transform.getScale().x < 0)
+		{
+			pivot.x = pivot.x * -1 + 1;
+		}
+
+		//Move based on pivot
+		{
+			glm::vec2 newPos = pivot;
+			newPos = -newPos + 0.5f;
+			newPos *= glm::vec2(Sprite->getAfterWidth(), Sprite->getAfterHeight());
+			model = glm::translate(model, glm::vec3(newPos, 0.0f));
+		}
+
+		pivot *= glm::vec2(Sprite->getAfterWidth(), Sprite->getAfterHeight());
+
+		pivot -= 0.5f * glm::vec2(Sprite->getAfterWidth(), Sprite->getAfterHeight());
+
+		//Take scaling into account 
+		//pivot *= glm::vec2(transform.getScale().x < 0 ? -1.0f : 1.0f, transform.getScale().y < 0 ? -1.0f : 1.0f);
+
+
+
+		model = glm::translate(model, glm::vec3(pivot, 0.0f)); //Move
+		model = glm::rotate(model, transform.getRotation(), glm::vec3(0, 0, 1)); //Rotate
+		model = glm::translate(model, glm::vec3(-pivot, 0.0f)); //Move back
+	}
+	else
+	{
+		model = glm::rotate(model, transform.getRotation(), glm::vec3(0, 0, 1));
+	}
 	//----------------!!Scaling down everything by 0.5, this because the verts cover from -1 to 1 which is 2 times the scale!!-----------------------
 	model = glm::scale(model, glm::vec3(texture->width * transform.getScale().x * 0.5f, texture->height * transform.getScale().y * 0.5f, 1.0f));
 

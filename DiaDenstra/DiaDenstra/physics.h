@@ -37,7 +37,11 @@ public:
 	{
 		none = 1 << 0, bullet = 1 << 1, ground = 1 << 2, player = 1 << 3, nothing = 1 << 4, ownplayer = 1 << 5
 	};
-
+	struct AABBSensor
+	{
+		std::string name{};
+		bool alive = true;
+	};
 
 	//Physics class object
 	static physics& Physics()
@@ -69,6 +73,8 @@ public:
 
 	void createSensor(const Entity entity, const categoryType Type, const categoryType targetMask, glm::vec2 pos, float size, int& customID);
 
+	void createAABBboxSensor(const Entity entity, glm::vec2 pos, float width, float height, const uint64_t mask, int groupIndex, std::string name, int& customID);
+
 	//For now only distance joint
 	void attachJoint(const Entity entity1, const Entity entity2, float distance, glm::vec2 anchorPos1 = {0,0}, glm::vec2 anchorPos2 = {0,0});
 
@@ -79,6 +85,8 @@ public:
 	/// <param name="frameChecked">Returns the physics frame that has currently be checked, could be used to check for duplicate checks</param>
 	/// <returns>0 if nothing happened, 1 if touched body, 2 if left body</returns>
 	int2 sensorTouchedBody(Entity entity, int customID, int& frameChecked, shape Shape = polygon);
+
+	void getAllSensoredBodies(Entity entity, int customID, int& frameChecked, Entity* outputArray, int& outputSize, shape Shape = polygon);
 
 	/// <summary>Check if sensor specified exist and which one it is<summary>
 	/// <param name="Body">Body that includes the sensor</param>
@@ -92,7 +100,7 @@ public:
 
 	void setRotOfEntity(Entity entity, glm::vec2 rotation);
 
-	void createBullet(Entity entity, glm::vec2 startPos, glm::vec2 dir, float speed, float size, int playerNumber);
+	void createBullet(Entity entity, glm::vec2 startPos, float direction, float speed, float size, int playerNumber, int bulletHealth = 1);
 
 	//If for example player is dead, it needs to be disabled and move away. Is expensive
 	void moveEntityOut(Entity entity);
@@ -103,9 +111,11 @@ public:
 	void destroyBody(Entity entity);
 
 	//Only use with static or kinematic bodies, this will smoothly set the position using velocity
-	void setBodyPos(glm::vec2 pos, Entity entity, float dt);
+	void setBodyPos(glm::vec2 pos, Entity entity);
 
 	void update(float dt);
+
+	void checkAABBSensor();
 
 	void jump(Entity entity);
 
@@ -139,7 +149,7 @@ private:
 	int framePhysicsStep = -1; //We need a count for the physics step since it does not update at the same time as other functions do.
 	float setPosCooldown = 0.0f;
 
-	Entity entitiesUpdatedInFrame[32];
+	Entity entitiesUpdatedInFrame[32]{};
 	int entitiesUpdatedSize = 0;
 
 

@@ -5,7 +5,7 @@
 #include <glm.hpp>
 #include <map>
 
-#define MAXINPUTTEXT 32
+#define MAXINPUTTEXT 64
 #define CHARACTERSIZE 6
 #define INVCHARACTERSIZE (1.0f/float(CHARACTERSIZE))
 
@@ -27,13 +27,14 @@ public:
 	//Set size of the next item, scale or just set width and height
 	void setNextSize(float scaleX, float scaleY, int width = 0, int height = 0);
 
+	void setNextWorldSpace();
 
-	bool inputText(const char* label, const char** output, glm::vec2 pos);
+	bool inputText(const char* label, const char** output, glm::vec2 pos, const char* setTextTo = 0, bool emptyText = false);
 
 	//Takes alpha into account
 	void text(const char* label, const char* text, glm::vec2 pos, unsigned color = 4294967295);
 
-	//Create a button at position, checks if 
+	//Create a button at position, checks if button is pressed
 	bool button(const char* label, glm::vec2 pos, bool defaultLooks = true, const char* image = "NONE");
 
 
@@ -58,19 +59,21 @@ public:
 	void image(const char* label, glm::vec2 pos, const char* image, unsigned layer = 0, int movehalfX = 0, int movehalfY = 0);
 
 	//Draw and update UI
-	void update(Shader* shader);
+	void update(Shader* screenShader, Shader* worldShader);
 
-
+	// Update the draw logic of the UI, this should be done just before calling the UI elements.
+	void updateLogic();
 
 private:
 	ui() {};
 
 	struct UILabel
 	{
-		const char* label;
+		std::string label;
 		bool active = false;
 		int type = 0;
 		bool status = false; //Activated or not
+		bool screenSpace = true; //Screen or worldSpace?
 
 		int* radioButtonPointer = nullptr; //Points at output int.
 		Entity radioButtonTarget{};
@@ -86,16 +89,17 @@ private:
 		Button, RadioButton, CheckBox, Image, InputText, Text
 	};
 
-	Entity firstChecks(const char* label, glm::vec2 pos, bool defaultLooks, const char* image, UIType Type, unsigned layer = 9999);
+	Entity firstChecks(std::string label, glm::vec2 pos, bool defaultLooks, const char* image, UIType Type, unsigned layer = 9999);
 
 	const char* typeToFile(UIType Type);
 
-	std::map<const char*, Entity> SavedSprites;
+	std::map<std::string, Entity> SavedSprites;
 	std::vector<Entity> drawOrderUI; //Could be a map or just an array
 
 	glm::vec2 nextScale = { 1,1 };
 	glm::vec2 nextWidthHeight = { 0,0 };
 	bool NextSizeSet = false;
+	bool NextWorldSpace = false;
 	screen* screenObj = nullptr;
 
 };

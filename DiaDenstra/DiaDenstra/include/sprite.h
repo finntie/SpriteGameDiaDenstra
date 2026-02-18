@@ -43,10 +43,15 @@ public:
 	}
 
 	//Moveable constructor since in the destructor we free and delete data.
-	spriteStr(spriteStr&& other) noexcept : buffer(other.buffer), afterBuffer(other.afterBuffer) 
+	spriteStr(spriteStr&& other) noexcept
+		: name(std::move(other.name))
+		, buffer(other.buffer)
+		, afterBuffer(other.afterBuffer)
+		, texture(std::move(other.texture))
 	{
 		other.buffer = nullptr;
 		other.afterBuffer = nullptr;
+		other.initializedBuffer = false;
 	}
 	//Move assigment https://www.geeksforgeeks.org/move-assignment-operator-in-cpp-11/
 	spriteStr& operator= (spriteStr&& other) noexcept 
@@ -57,11 +62,15 @@ public:
 			if (initializedBuffer && buffer) _aligned_free(buffer);
 			if (initializedBuffer && afterBuffer) delete[] afterBuffer;
 			//Make other's data our own
+			name = std::move(other.name);
 			buffer = other.buffer;
 			afterBuffer = other.afterBuffer;
+			initializedBuffer = other.initializedBuffer;
+			texture = std::move(other.texture);
 			// reset 'other' to valid state
 			other.buffer = nullptr;
 			other.afterBuffer = nullptr;
+			other.initializedBuffer = false;
 		}
 		return *this;
 	}
@@ -82,6 +91,14 @@ protected:
 	bool brightnessChanged = false;
 };
 
+struct spriteParticle
+{
+	spriteStr Sprite{};
+	float timePerFrame = 0.2f;
+	float timeSinceLastUpdate = 0.0f;
+	int repeatsRemaining = 1;
+};
+
 class screen;
 class sprite
 {
@@ -90,7 +107,7 @@ public:
 	sprite() {};
 	~sprite() {};
 
-	static void initFromFile(spriteStr* Sprite, const char* file, const int frames, const char* name);
+	static void initFromFile(spriteStr* Sprite, const char* file, const int frames, std::string name);
 	static void initEmpty(spriteStr* Sprite, const int frames, const char* name, int width, int height);
 
 	/// <summary>Clears sprite to a color</summary>
@@ -99,7 +116,7 @@ public:
 	static void emptySprite(spriteStr* Sprite, glm::vec4 color);
 
 	/// <summary>Checks if the Sprites need to be changed, needs to be called every frame</summary>
-	static void updateSpriteBuffer();
+	static void updateSpriteBuffer(float dt);
 
 	static void updateIndividualSpriteBuffer(spriteStr& Sprite);
 
@@ -122,6 +139,8 @@ public:
 	/// <param name="rotation">: Set rotation for openGL</param>
 	/// <returns></returns>
 	static Entity createSpriteToRegistry(const char* file, const char* name = "none", float depth = 0.0f, int frames = 1, glm::vec2 pos = { 0,0 }, glm::vec2 scale = { 1,1 }, glm::vec2 widthHeight = { 0,0 }, float rotation = 0);
+
+	static Entity createParticle(const char* file, int frames = 1, int repeatTimes = -1, float timePerFrame = 0.2f, glm::vec2 pos = { 0,0 }, glm::vec2 scale = { 1,1 }, float rotation = 0.0f);
 
 	static void setBrightenSprite(spriteStr* Sprite, int BrightnessAmount);
 

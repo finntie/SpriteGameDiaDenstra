@@ -8,6 +8,9 @@
 // default screen resolution
 #define SCRWIDTH	1280
 #define SCRHEIGHT	720
+#define HALFSCRWIDTH	float(SCRWIDTH) * 0.5f
+#define HALFSCRHEIGHT	float(SCRHEIGHT) * 0.5f
+
 // #define FULLSCREEN
 
 // constants

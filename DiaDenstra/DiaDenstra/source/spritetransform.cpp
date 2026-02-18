@@ -136,6 +136,9 @@ void spritetransform::fillRotateGaps(spriteStr& Sprite, float rotation, glm::vec
 					//Where ABC is unrotated triangle
 					int u2 = int(0.5f + (u * Sprite.width  + v * 0 + w * 0)); //corrisponding x and y for original image
 					int v2 = int(0.5f + (u * 0 + v * 0 + w * Sprite.height ));
+
+					u2 = std::min(Sprite.width - 1, int(u * Sprite.width)); //Clamp for stability
+					v2 = std::min(Sprite.height - 1, int(w * Sprite.height)); //Clamp for stability
 					//Now we can finally grab the corrisponding color
 					Sprite.afterBuffer[x + y * Sprite.afterWidth] = Sprite.buffer[u2 + v2 * Sprite.width];
 				}
@@ -147,6 +150,7 @@ void spritetransform::fillRotateGaps(spriteStr& Sprite, float rotation, glm::vec
 						int u2 = int(0.5f + (u * 0 + v * Sprite.width + w * Sprite.width)); //corrisponding x and y for original image
 						int v2 = int(0.5f + (u * Sprite.height + v * Sprite.height + w * 0));
 						//Now we can finally grab the corrisponding color
+						if (u2 >= Sprite.width || v2 >= Sprite.height) continue;
 						Sprite.afterBuffer[x + y * Sprite.afterWidth] = Sprite.buffer[u2 + v2 * Sprite.width];
 					}
 				}

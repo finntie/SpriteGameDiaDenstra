@@ -176,6 +176,46 @@ void physics::createSensor(const Entity entity, const categoryType type, const c
 	}
 }
 
+void physics::createAABBboxSensor(const Entity entity, glm::vec2 pos, float width, float height, const uint64_t mask, int groupIndex, std::string name, int& customID)
+{
+	//Convert Pos 
+	pos *= INVERSECENTIMETER;
+	width *= INVERSECENTIMETER * 0.5f;
+	height *= INVERSECENTIMETER * 0.5f;
+
+	//Check if there already exists a body on this entity
+	b2BodyId* bodyID = nullptr;
+	bodyID = Registry.try_get<b2BodyId>(entity);
+
+	//If it does not exist, create a new one
+	if (bodyID == nullptr)
+	{
+		bodyID = &CreateComponent<b2BodyId>(entity);
+		b2BodyDef bodyDef = b2DefaultBodyDef();
+		bodyDef.type = b2_staticBody;
+		bodyDef.position = b2Vec2{ pos.x, pos.y };
+		bodyDef.fixedRotation = true;
+		*bodyID = b2CreateBody(worldId, &bodyDef);
+	}
+
+	auto& AABB = CreateComponent<AABBSensor>(entity);
+	AABB.alive = true;
+	AABB.name = name;
+
+	b2ShapeDef shapeDef = b2DefaultShapeDef();
+	shapeDef.isSensor = true;
+	shapeDef.filter.categoryBits = bullet;
+	shapeDef.filter.maskBits = player | ownplayer; //Ownplayer because the groupfilter will mask out the own bullets
+	shapeDef.filter.groupIndex = groupIndex * -1;
+
+	b2Polygon bodyShape = b2MakeOffsetBox(width * 0.5f, height * 0.5f, { 0.0f, 0.0f }, { 1,1 });
+	bodyShape.radius = 0.005f; //Round edges
+	//bodyShape.centroid = { pos.x,pos.y };
+	b2ShapeId shapeID = b2CreatePolygonShape(*bodyID, &shapeDef, &bodyShape);
+	customID = shapeID.index1;
+
+}
+
 
 void physics::attachJoint(const Entity entity1, const Entity entity2, float distance, glm::vec2 anchorPos1, glm::vec2 anchorPos2)
 {
@@ -252,6 +292,49 @@ int2 physics::sensorTouchedBody(Entity entity, int customID, int& frameChecked, 
 	return { 0,0 };
 }
 
+void physics::getAllSensoredBodies(Entity entity, int customID, int& frameChecked, Entity* outputArray, int& outputSize, shape Shape)
+{
+	outputSize = 0;
+	if (frameChecked == framePhysicsStep) return;
+
+	b2BodyId* Body = nullptr;
+	Body = Registry.try_get<b2BodyId>(entity);
+	if (Body != nullptr)
+	{
+		frameChecked = framePhysicsStep;
+
+		b2ShapeId ShapeID;
+		if (!isSensor(*Body, customID, Shape, ShapeID))
+		{
+			return;
+		}
+		b2SensorEvents sensorEvents = b2World_GetSensorEvents(b2Body_GetWorld(*Body));
+		
+
+		for (int i = 0; i < sensorEvents.beginCount; ++i) //Loop over all sensor events
+		{
+			b2SensorBeginTouchEvent* beginTouch = sensorEvents.beginEvents + i; //Grab begin touch event
+
+			//Check if our sensor did anything
+			if (B2_ID_EQUALS(beginTouch->sensorShapeId, ShapeID)) //Checks index, worlds and revision
+			{
+				//If mask is set up correctly, this should indicate that we have begin touching.
+				b2ShapeType type = b2Shape_GetType(beginTouch->sensorShapeId);
+				b2BodyId otherBody = b2Shape_GetBody(beginTouch->visitorShapeId);
+				for (const auto& [objectEntity, transform, BodyCheck] : Registry.view<Stransform, b2BodyId>().each())
+				{
+					if (B2_ID_EQUALS(otherBody, BodyCheck))
+					{
+						outputArray[outputSize] = objectEntity;
+						outputSize++;
+						break;
+					}
+				}
+			}
+		}
+	}
+}
+
 bool physics::isSensor(const b2BodyId& Body, const int customID, const shape Shape, b2ShapeId& ShapeID)
 {
 	//Try get shape
@@ -274,6 +357,7 @@ bool physics::isSensor(const b2BodyId& Body, const int customID, const shape Sha
 
 bool physics::getHitEntity(Entity entity, Entity& outputEntity, int& frameChecked, bool& hitObject, uint64_t filter)
 {
+
 	hitObject = false;
 	if (frameChecked == framePhysicsStep) return false;
 
@@ -343,7 +427,7 @@ void physics::setRotOfEntity(Entity entity, glm::vec2 dir)
 
 }
 
-void physics::createBullet(Entity entity, glm::vec2 startPos, glm::vec2 dir, float speed, float size, int playerNumber)
+void physics::createBullet(Entity entity, glm::vec2 startPos, float rotation, float speed, float size, int playerNumber, int health)
 {
 	//Shape is of course a circle
 
@@ -354,14 +438,17 @@ void physics::createBullet(Entity entity, glm::vec2 startPos, glm::vec2 dir, flo
 	bodyDef.fixedRotation = false;
 	bodyDef.isBullet = true;
 	//bodyDef.gravityScale = 0.3f; //Scale gravity lower
-	bodyDef.rotation.c = dir.x;
-	bodyDef.rotation.s = dir.y;
+	b2Vec2 rot;
+	rot.x = std::cos(glm::radians(rotation));
+	rot.y = std::sin(glm::radians(rotation));
+	bodyDef.rotation.c = rot.x;
+	bodyDef.rotation.s = rot.y;
 	bodyID = b2CreateBody(worldId, &bodyDef);
 
 	b2ShapeDef shapeDef = b2DefaultShapeDef();
 	shapeDef.density = 1.8f;
 	shapeDef.friction = 0.0f;
-	//shapeDef.restitution = 1.0f;
+	shapeDef.restitution = 1.0f;
 	shapeDef.filter.categoryBits = bullet;
 	shapeDef.filter.maskBits = ground | player | ownplayer; //Ownplayer because the groupfilter will mask out the own bullets
 	shapeDef.filter.groupIndex = playerNumber * -1;
@@ -376,14 +463,13 @@ void physics::createBullet(Entity entity, glm::vec2 startPos, glm::vec2 dir, flo
 	b2Shape_EnableHitEvents(shapeID, true); //Enable to receive hit events
 
 	//Add velocity to body
-	b2Body_ApplyLinearImpulseToCenter(bodyID, { dir.x * speed, dir.y * speed }, true);
+	b2Body_ApplyLinearImpulseToCenter(bodyID, { rot.x * speed, rot.y * speed }, true);
 
 }
 
 void physics::moveEntityOut(Entity entity)
 {
-	b2BodyId* Body = nullptr;
-	Body = Registry.try_get<b2BodyId>(entity);
+	b2BodyId* Body = Registry.try_get<b2BodyId>(entity);
 	if (Body != nullptr)
 	{
 		b2Body_SetTransform(*Body, { -1000, -1000 }, b2Body_GetRotation(*Body));
@@ -413,7 +499,7 @@ void physics::destroyBody(Entity entity)
 
 }
 
-void physics::setBodyPos(glm::vec2 pos, Entity entity, float dt)
+void physics::setBodyPos(glm::vec2 pos, Entity entity)
 {
 	//Check if entity already is updated in this frame
 	int i = 0;
@@ -452,8 +538,6 @@ void physics::update(float dt)
 		timepast = timeStep + timepast;
 		b2World_Step(worldId, timeStep, subStepCount);
 		entitiesUpdatedSize = 0;
-
-
 		for (const auto& [spriteEntity, body, transform, Sprite] : Registry.view<b2BodyId, Stransform, spriteStr>().each())
 		{
 
@@ -484,8 +568,24 @@ void physics::update(float dt)
 			//if (vel.x < -5.0f) b2Body_SetLinearVelocity(body, { -5, vel.y });
 
 			}
-		}
 
+			checkAABBSensor();
+		}
+	}
+}
+
+void physics::checkAABBSensor()
+{
+	for (const auto& [spriteEntity, body, AABB] : Registry.view<b2BodyId, AABBSensor>().each())
+	{
+		if (AABB.alive) AABB.alive = false;
+		else
+		{
+			//Delete sensor (it lived already 1 frame)
+			//b2DestroyBody(body);
+			//Registry.destroy(spriteEntity, 1);
+			//printf("destroyed sensor\n");
+		}
 	}
 }
 

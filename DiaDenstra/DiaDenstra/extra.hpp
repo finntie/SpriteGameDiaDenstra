@@ -16,6 +16,9 @@ static std::string IPToCode(std::string& IP)
     std::string_view thirdColon = getWordDot(IP, 2);
     std::string_view fourthColon = getWordDot(IP, 3);
 
+    //Highly likely that it is invalid or IPV6
+    if (firstColon.size() > 3) return IP;
+
     int sectionNumber = 2;
 
     for (int i = 0; i < int(thirdColon.size()); i++)
@@ -49,6 +52,8 @@ static std::string CodeToIP(std::string& Code)
     std::string_view thirdColon = getWordDot(Code, 2);
     std::string_view fourthColon = getWordDot(Code, 3);
 
+    //Highly likely that it is invalid or IPV6
+    if (firstColon.size() > 3) return Code;
 
     if (thirdColon == "1O") output += "192";
     else if (thirdColon == "3M") output += "255";
@@ -111,6 +116,7 @@ const char charToNumber(const char number, int section)
 const char numberToChar(const char number, int section)
 {
     int numberConvert = (number - 65);
+    numberConvert += numberConvert < section * 10 ? 26 : 0;
     numberConvert -= section * 10;
     numberConvert += 48; //To ASCII
     return numberConvert;

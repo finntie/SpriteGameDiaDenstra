@@ -18,7 +18,12 @@ void ui::setNextSize(float scaleX, float scaleY, int width, int height)
 	NextSizeSet = true;
 }
 
-bool ui::inputText(const char* label, const char** output, glm::vec2 pos)
+void ui::setNextWorldSpace()
+{
+	NextWorldSpace = true;
+}
+
+bool ui::inputText(const char* label, const char** output, glm::vec2 pos, const char* setTextTo, bool emptyText)
 {
 	if (screenObj != nullptr)
 	{
@@ -33,6 +38,7 @@ bool ui::inputText(const char* label, const char** output, glm::vec2 pos)
 
 		//Check if clicked or hovered
 		glm::vec2 mousepos = input::Input().mousePos;
+		if (!UI.screenSpace) mousepos = input::Input().getMousePosOffset();
 		mousepos.y = SCRHEIGHT - mousepos.y;
 		if (mousepos.x > pos.x - Sprite.getAfterWidth() * 0.5f && mousepos.x < pos.x + Sprite.getAfterWidth() * 0.5f &&
 			mousepos.y > pos.y - Sprite.getAfterHeight() * 0.5f && mousepos.y < pos.y + Sprite.getAfterHeight() * 0.5f)
@@ -81,10 +87,12 @@ bool ui::inputText(const char* label, const char** output, glm::vec2 pos)
 			if (backspace && !UI.inputText.empty()) UI.inputText.pop_back();
 			else if (UI.inputText.size() + keysPressed.size() < MAXINPUTTEXT) UI.inputText += keysPressed;
 		}
+		if (setTextTo != 0) UI.inputText = setTextTo;
 
 		//Update visuals
-		if (UI.active && !UI.inputText.empty() && input::Input().keysChangedAmount > 0)
+		if ((UI.active && !UI.inputText.empty() && input::Input().keysChangedAmount > 0) || emptyText || setTextTo != 0)
 		{
+			if (emptyText) UI.inputText = "";//TODO: make a function apart for emptying
 			if (UI.inputTextSprite.name == "None") sprite::initEmpty(&UI.inputTextSprite, 1, "InputTextSprite", CHARACTERSIZE * MAXINPUTTEXT, CHARACTERSIZE);
 			else sprite::emptySprite(&UI.inputTextSprite, glm::vec4(0));
 
@@ -142,6 +150,8 @@ void ui::text(const char* label, const char* text, glm::vec2 pos, unsigned color
 		newPos.x += float(CHARACTERSIZE * MAXINPUTTEXT) * sizeIncrease.x * 0.5f; //Set to middle
 		newPos.x -= 0.5f * sizeIncrease.x * float(CHARACTERSIZE * int(UI.inputText.size())); //Offset by each new character
 
+		transform.setTranslation(newPos);
+
 		//Update visuals
 		if (UI.active && !UI.inputText.empty() && (newPos != transform.getTranslation() || textChanged))
 		{
@@ -153,7 +163,6 @@ void ui::text(const char* label, const char* text, glm::vec2 pos, unsigned color
 			//Maybe change size 
 			UI.inputTextSprite.localSpriteTransform.setScale(sizeIncrease);
 
-			transform.setTranslation(newPos);
 			//Now we need to update the buffer
 			sprite::updateIndividualSpriteBuffer(UI.inputTextSprite);
 
@@ -174,6 +183,7 @@ bool ui::button(const char* label, glm::vec2 pos, bool defaultLooks, const char*
 
 	//Check if clicked or hovered
 	glm::vec2 mousepos = input::Input().mousePos;
+	if (!UI.screenSpace) mousepos = input::Input().getMousePosOffset();
 	mousepos.y = SCRHEIGHT - mousepos.y;
 	if (mousepos.x > pos.x - Sprite.getAfterWidth() * 0.5f && mousepos.x < pos.x + Sprite.getAfterWidth() * 0.5f &&
 		mousepos.y > pos.y - Sprite.getAfterHeight() * 0.5f && mousepos.y < pos.y + Sprite.getAfterHeight() * 0.5f)
@@ -207,6 +217,7 @@ bool ui::checkBox(const char* label, bool& output, glm::vec2 pos, bool defaultLo
 
 	//Check if clicked or hovered
 	glm::vec2 mousepos = input::Input().mousePos;
+	if (!UI.screenSpace) mousepos = input::Input().getMousePosOffset();
 	mousepos.y = SCRHEIGHT - mousepos.y;
 	if (mousepos.x > pos.x - Sprite.getAfterWidth() * 0.5f && mousepos.x < pos.x + Sprite.getAfterWidth() * 0.5f &&
 		mousepos.y > pos.y - Sprite.getAfterHeight() * 0.5f && mousepos.y < pos.y + Sprite.getAfterHeight() * 0.5f)
@@ -245,6 +256,7 @@ bool ui::radioButton(const char* label, int& output, int numberOutput, glm::vec2
 
 	//Check if clicked or hovered
 	glm::vec2 mousepos = input::Input().mousePos;
+	if (!UI.screenSpace) mousepos = input::Input().getMousePosOffset();
 	mousepos.y = SCRHEIGHT - mousepos.y;
 	if (mousepos.x > pos.x - Sprite.getAfterWidth() * 0.5f && mousepos.x < pos.x + Sprite.getAfterWidth() * 0.5f &&
 		mousepos.y > pos.y - Sprite.getAfterHeight() * 0.5f && mousepos.y < pos.y + Sprite.getAfterHeight() * 0.5f)
@@ -265,7 +277,7 @@ bool ui::radioButton(const char* label, int& output, int numberOutput, glm::vec2
 				}
 
 				//Loop over all radiobuttons to check which ones are part of this series
-				std::map<const char*, Entity>::iterator uiEntity;
+				std::map<std::string, Entity>::iterator uiEntity;
 				for (uiEntity = SavedSprites.begin(); uiEntity != SavedSprites.end(); uiEntity++)
 				{
 					auto& UITarget = Registry.get<UILabel>(uiEntity->second);
@@ -317,7 +329,7 @@ void ui::image(const char* label, glm::vec2 pos, const char* image, unsigned lay
 }
 
 
-void ui::update(Shader* shader)
+void ui::update(Shader* screenShader, Shader* worldShader)
 {
 	//if (button("Test", { 1100,350 }, true, " ")) printf("Button 1 pressed\n");
 	//if (button("Test2", { 1150,350 }, true, " ")) printf("Button 2 pressed\n");
@@ -353,11 +365,10 @@ void ui::update(Shader* shader)
 
 		if (UI.active)
 		{
-			UI.active = false; //Only draw UI that is called 
-
 			spriteStr& Sprite = Registry.get<spriteStr>(drawOrderUI[i]);
 			Stransform& transform = Registry.get<Stransform>(drawOrderUI[i]);
-
+			Shader* shader = screenShader;
+			if (!UI.screenSpace) shader = worldShader;
 
 			if (Sprite.bufferChanged)
 			{
@@ -392,11 +403,24 @@ void ui::update(Shader* shader)
 
 }
 
-Entity ui::firstChecks(const char* label, glm::vec2 pos, bool defaultLooks, const char* image, UIType Type, unsigned layer)
+void ui::updateLogic()
+{
+	for (int i = 0; i < int(drawOrderUI.size()); i++)
+	{
+		UILabel& UI = Registry.get<UILabel>(drawOrderUI[i]);
+
+		if (UI.active)
+		{
+			UI.active = false; //Only draw UI that is called 
+		}
+	}
+}
+
+Entity ui::firstChecks(std::string label, glm::vec2 pos, bool defaultLooks, const char* image, UIType Type, unsigned layer)
 {
 	Entity outputEntity;
 
-	std::map<const char*, Entity>::const_iterator uiEntity = SavedSprites.find(label);
+	std::map<std::string, Entity>::const_iterator uiEntity = SavedSprites.find(label);
 	if (uiEntity == SavedSprites.end())
 	{
 		//Load sprite
@@ -405,7 +429,7 @@ Entity ui::firstChecks(const char* label, glm::vec2 pos, bool defaultLooks, cons
 		Stransform& transform = CreateComponent<Stransform>(outputEntity);
 		UILabel& UIL = CreateComponent<UILabel>(outputEntity);
 		UIL.active = true;
-		UIL.label = label;
+		UIL.label = label; //Copy value so its not pointer.
 		UIL.type = static_cast<int>(Type);
 		UIL.layer = layer;
 		transform.setTranslation(pos);
@@ -416,7 +440,10 @@ Entity ui::firstChecks(const char* label, glm::vec2 pos, bool defaultLooks, cons
 		if (Type == ui::RadioButton || Type == ui::CheckBox) frames = 2;
 
 		if (defaultLooks) sprite::initFromFile(&Sprite, file.c_str(), frames, "DefaultButton");
-		else sprite::initFromFile(&Sprite, image, frames, label);
+		else sprite::initFromFile(&Sprite, image, frames, label.c_str());
+
+		if (NextWorldSpace) UIL.screenSpace = false;
+		else UIL.screenSpace = true;
 
 		if (NextSizeSet)
 		{
@@ -443,7 +470,6 @@ Entity ui::firstChecks(const char* label, glm::vec2 pos, bool defaultLooks, cons
 	{
 		outputEntity = uiEntity->second;
 		spriteStr& Sprite = Registry.get<spriteStr>(outputEntity);
-
 		UILabel& UIL = Registry.get<UILabel>(outputEntity);
 		UIL.active = true;
 
@@ -453,6 +479,7 @@ Entity ui::firstChecks(const char* label, glm::vec2 pos, bool defaultLooks, cons
 			else sprite::setSpriteWidthHeight(&Sprite, int(nextWidthHeight.x), int(nextWidthHeight.y));
 		}
 	}
+	NextWorldSpace = false;
 	NextSizeSet = false;
 	nextScale = { 1,1 };
 	nextWidthHeight = { 0,0 };

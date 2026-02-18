@@ -150,7 +150,7 @@
     <ClCompile Include="physics.cpp" />
     <ClCompile Include="player.cpp" />
     <ClCompile Include="source\geometry2d.cpp" />
-    <ClCompile Include="source\dance.cpp" />
+    <ClCompile Include="source\networking\dance.cpp" />
     <ClCompile Include="source\opengl.cpp" />
     <ClCompile Include="source\screen.cpp" />
     <ClCompile Include="template.cpp" />
@@ -161,6 +161,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="camera.h" />
+    <ClInclude Include="include\networking\dancelogger.h" />
     <ClInclude Include="external\clipper\include\clipper2\clipper.core.h" />
     <ClInclude Include="external\clipper\include\clipper2\clipper.engine.h" />
     <ClInclude Include="external\clipper\include\clipper2\clipper.export.h" />
@@ -172,7 +173,7 @@
     <ClInclude Include="gamesystem.h" />
     <ClInclude Include="include\common.h" />
     <ClInclude Include="include\geometry2d.hpp" />
-    <ClInclude Include="include\dance.h" />
+    <ClInclude Include="include\networking\dance.h" />
     <ClInclude Include="include\opengl.h" />
     <ClInclude Include="include\screen.h" />
     <ClInclude Include="include\register.hpp" />
@@ -183,6 +184,7 @@
     <ClInclude Include="player.h" />
     <ClInclude Include="tilemap.h" />
     <ClInclude Include="ui.h" />
+    <ClInclude Include="worldStats.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -1,5 +1,6 @@
 #pragma once
 #include <glm.hpp>
+#include "camera.h"
 
 class input
 {
@@ -175,6 +176,10 @@ public:
 			previousMousebuttonstate[i] = currentMousebuttonstate[i];
 			currentMousebuttonstate[i] = mousebuttonstateAction[i];
 		}
+
+        mouseScrollCurrent = mouseScrollAction;
+        mouseScrollAction = 0.0f;
+
 	}
 
     bool getKeyDownOnce(Key key) { return currentKeystate[static_cast<int>(key)] && !previousKeystate[static_cast<int>(key)]; }
@@ -182,6 +187,8 @@ public:
 
 	bool getMouseButtonOnce(MouseButton button) { return currentMousebuttonstate[static_cast<int>(button)] && !previousMousebuttonstate[static_cast<int>(button)]; }
 	bool getMouseButton(MouseButton button) { return currentMousebuttonstate[static_cast<int>(button)] && previousMousebuttonstate[static_cast<int>(button)]; }
+
+    float getCurrentMouseScroll() { return mouseScrollCurrent; }
 
 	unsigned int keystateAction[350] = { 0 };
 	unsigned int currentKeystate[350] = { 0 };
@@ -192,8 +199,16 @@ public:
 
     unsigned int keystateChanged[16] = { 0 }; //Array of which keys changed in one frame.
     int keysChangedAmount = 0;
-	float mouseScroll = 0.0f;
+	float mouseScrollAction = 0.0f;
+    float mouseScrollCurrent = 0.0f;
+
 	glm::vec2 mousePos = { 0.0f, 0.0f };
+    //Get offset using camera
+    glm::vec2 getMousePosOffset() 
+    {
+       // return mousePos;
+        return camera::screenToView(mousePos);
+    }
 
 private:
 	input() {};

@@ -7,18 +7,18 @@
 struct cameraStr
 {
 public:
-	glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
-	glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
-	glm::mat4 view = glm::mat4(1.0f);
-	glm::mat4 projection = glm::ortho(0.0f, float(SCRWIDTH), 0.0f, float(SCRHEIGHT), -1.0f, 1.0f);
+	glm::vec2 cameraPos = glm::vec2(0.0f, 0.0f);
+	glm::vec2 cameraZoom = glm::vec2(1.0f, 1.0f);
 
+	glm::mat4 getView() { return glm::translate(glm::mat4(1), glm::vec3(-cameraPos, 0.0f));	}
+	glm::mat4 getProjection() 
+	{
+		float halfWidth = (HALFSCRWIDTH / cameraZoom.x) ;
+		float halfHeight = (HALFSCRHEIGHT / cameraZoom.y);
+		return glm::ortho(-halfWidth,  halfWidth,  -halfHeight,  halfHeight, -1.0f, 1.0f);
+	}
 
 private:
-
-	glm::vec3 cameraDirection = glm::normalize(cameraPos - cameraTarget);
-	glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
-	glm::vec3 cameraRight = glm::normalize(glm::cross(up, cameraDirection));
-	glm::vec3 cameraUp = glm::cross(cameraDirection, cameraRight);
 
 };
 
@@ -29,7 +29,11 @@ public:
 
 	static void setCameraPos(glm::vec2 pos);
 	static void zoomCamera(glm::vec2 zoom);
+	
+	static void followPosition(glm::vec2 pos);
 
+	//Due to the camera changment, some positions need to be offset.
+	static glm::vec2 screenToView(glm::vec2 value);
 private:
 };
 
