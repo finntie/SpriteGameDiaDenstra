@@ -18,6 +18,8 @@ public:
 
 	void drawSprites(Shader* shader);
 
+	void drawBackgroundDirt(Shader* shader, Entity& spriteEntity);
+
 	void getTimerData(const std::string& data);
 
 	void setToClipBoard(const std::string& data);
@@ -34,8 +36,9 @@ public:
 	Dance* danceObj = nullptr;
 private:
 
-	sprite spriteObj;
-	player playerObj;
+	player playerObj{};
+	Entity spriteMap{};
+	
 
 	int gameStatus = 0; //0 = main screen | 1 = options | 2 = connection Menu | 3 = Join Menu | 4 = Host Menu | 5 = Wait Lobby | 6 = game | 7 = pause
 

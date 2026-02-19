@@ -17,13 +17,6 @@ void camera::zoomCamera(glm::vec2 zoom)
 	}
 }
 
-void camera::followPosition(glm::vec2 pos)
-{
-	setCameraPos(pos);
-	//Useless function?
-}
-
-
 glm::vec2 camera::screenToView(glm::vec2 value)
 {
 
@@ -35,6 +28,24 @@ glm::vec2 camera::screenToView(glm::vec2 value)
 		return pos + ((value - glm::vec2(HALFSCRWIDTH, HALFSCRHEIGHT)) / cameraObj.cameraZoom);
 	}
 	return glm::vec2();
+}
+
+glm::vec2 camera::getCameraPos()
+{
+	for (const auto& [entity, cameraObj] : Registry.view<cameraStr>().each())
+	{
+		return cameraObj.cameraPos;
+	}
+	return { 0.0f, 0.0f };
+}
+
+glm::vec2 camera::getCameraZoom()
+{
+	for (const auto& [entity, cameraObj] : Registry.view<cameraStr>().each())
+	{
+		return cameraObj.cameraZoom;
+	}
+	return { 0.0f, 0.0f };
 }
 
 

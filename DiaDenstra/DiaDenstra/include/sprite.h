@@ -28,6 +28,8 @@ public:
 	int maxFrames = 0;
 	bool forceBufferChange = false;
 	Stransform localSpriteTransform{}; //Transform for local buffer
+	//How much does the sprite move with camera, if 1.0f, it moves fully, which could be usefull for backgrounds.
+	float moveWithCamera = 0.0f;
 
 	const int getAfterWidthDif() { return afterWidthDifference; }
 	const int getAfterHeightDif() { return afterHeightDifference; }
@@ -137,8 +139,9 @@ public:
 	/// <param name="scale">: Scale globally (using openGL)</param>
 	/// <param name="widthHeight">: Set width or heigh locally for the buffer. To use default, set to {0,0}</param>
 	/// <param name="rotation">: Set rotation for openGL</param>
+	/// <param name="moveWithCamera">: Set how much it moves with camera, 0.0f is normal, 1.0f moves fully with camera</param>
 	/// <returns></returns>
-	static Entity createSpriteToRegistry(const char* file, const char* name = "none", float depth = 0.0f, int frames = 1, glm::vec2 pos = { 0,0 }, glm::vec2 scale = { 1,1 }, glm::vec2 widthHeight = { 0,0 }, float rotation = 0);
+	static Entity createSpriteToRegistry(const char* file, const char* name = "none", float depth = 0.0f, int frames = 1, glm::vec2 pos = { 0,0 }, glm::vec2 scale = { 1,1 }, glm::vec2 widthHeight = { 0,0 }, float rotation = 0, float moveWithCamrea = 0.0f);
 
 	static Entity createParticle(const char* file, int frames = 1, int repeatTimes = -1, float timePerFrame = 0.2f, glm::vec2 pos = { 0,0 }, glm::vec2 scale = { 1,1 }, float rotation = 0.0f);
 

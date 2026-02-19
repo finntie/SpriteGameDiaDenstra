@@ -35,9 +35,13 @@ void gamesystem::init()
 	playerObj = player();
 	playerObj.init(*danceObj);
 
-	tilemap::initTileMap("assets/tilemap/ground.png", "assets/tilemap/Map1.csv", "assets/tilemap/vertices.txt");
+	spriteMap = tilemap::initTileMap("assets/tilemap/ground.png", "assets/tilemap/bigMap1.csv", "assets/tilemap/vertices.txt");
 
-	playerObj.spawnPositions = tilemap::initSpawnLocations("assets/tilemap/PlayerSpawnMap.csv", "assets/tilemap/ground.png");
+	playerObj.spawnPositions = tilemap::initSpawnLocations("assets/tilemap/bigMap1_PlayerSpawnsBigMap.csv", "assets/tilemap/ground.png");
+
+	Entity spriteEntity = sprite::createSpriteToRegistry("assets/tilemap/backGroundTile.png", "BackGroundTile", 1.1f, 1, {0,0});
+	sprite::updateSpriteBuffer(0);
+	physics::Physics().drawOrder.push_back(spriteEntity);
 
 	physics::Physics().init();
 	physics::Physics().createBodyMap();
@@ -45,7 +49,7 @@ void gamesystem::init()
 
 	danceObj->init(true, true); //We won't need to use ipv6 for LAN.
 
-	Entity spriteEntity = sprite::createSpriteToRegistry("assets/background.png", "BackGround", -1.0f, 1, { SCRWIDTH * 0.5f, SCRHEIGHT * 0.5f }, {1,1});
+	spriteEntity = sprite::createSpriteToRegistry("assets/uiSprites/background.png", "BackGround", -1.0f, 1, { 0,0 }, { 1,1 }, { 0, 0 }, 0.0f, 1.0f);
 	physics::Physics().drawOrder.push_back(spriteEntity); 
 	
 	//Packages
@@ -588,43 +592,107 @@ void gamesystem::drawSprites(Shader* shader)
 {
 	for (int i = 0; i < int(physics::Physics().drawOrder.size()); i++)
 	{
-		auto& Entity = physics::Physics().drawOrder[i];
+		auto& entity = physics::Physics().drawOrder[i];
 
-		if (!Registry.valid(Entity))
+		if (!Registry.valid(entity))
 		{
 			physics::Physics().drawOrder.erase(physics::Physics().drawOrder.begin() + i);  //Delete ourself
 			i--;
 			continue;
 		}
-		auto* Sprite = Registry.try_get<spriteStr>(Entity);
+		auto* Sprite = Registry.try_get<spriteStr>(entity);
 		if (!Sprite)
 		{
 			//Sprite is probably a particle
-			auto* ParticleSprite = Registry.try_get<spriteParticle>(Entity);
+			auto* ParticleSprite = Registry.try_get<spriteParticle>(entity);
 			if (!ParticleSprite)
 			{
-				printf("Error, could not find entity %i to draw \n", static_cast<int>(Entity));
+				printf("Error, could not find entity %i to draw \n", static_cast<int>(entity));
 				continue;
 			}
 			Sprite = &ParticleSprite->Sprite;
 		}
-		auto& transform = Registry.get<Stransform>(Entity);
+		
 
-		//if (Sprite.name != "TileMapSprite")
+		// Draw background tiles outside of the map.
+		if (Sprite->name == "BackGroundTile")
 		{
-
-			if (Sprite->bufferChanged)
-			{
-				Sprite->texture->CopyFrom(Sprite->afterBuffer);
-				Sprite->bufferChanged = false;
-			}
-			shader->Bind();
-			shader->SetInputTexture(0, "c", Sprite->texture);
-			DrawQuadSprite(shader, transform, Sprite->texture, Sprite);
-			shader->Unbind();
+			drawBackgroundDirt(shader, entity);
+			continue;
 		}
+
+		// Copy needed if not wanting to change current transform when moving with camera
+		auto useTransform = Registry.get<Stransform>(entity);
+
+		if (Sprite->moveWithCamera != 0.0f)
+		{
+			//Adjust transform based on current position and camera position
+			b2Vec2 pos1{ 0.0f, 0.0f };
+			glm::vec2 camPos = camera::getCameraPos();
+			b2Vec2 pos2{ camPos.x, camPos.y };
+			b2Vec2 posToCameraRaw = b2Lerp(pos1, pos2, Sprite->moveWithCamera);
+			glm::vec2 posToCamera = { posToCameraRaw.x + useTransform.getTranslation().x, posToCameraRaw.y + useTransform.getTranslation().y };
+			useTransform.setTranslation(posToCamera);
+		}
+
+		if (Sprite->bufferChanged)
+		{
+			Sprite->texture->CopyFrom(Sprite->afterBuffer);
+			Sprite->bufferChanged = false;
+		}
+		shader->Bind();
+		shader->SetInputTexture(0, "c", Sprite->texture);
+		DrawQuadSprite(shader, useTransform, Sprite->texture, Sprite);
+		shader->Unbind();
+
 	}
 
+}
+
+void gamesystem::drawBackgroundDirt(Shader* shader, Entity& spriteEntity)
+{
+	// Draw all the tiles outside of the playing area but in view of the player
+	auto* SpriteTile = Registry.try_get<spriteStr>(spriteEntity);
+	auto* SpriteMap = Registry.try_get<spriteStr>(spriteMap);
+	if (!SpriteMap || !SpriteTile) return;
+
+
+	if (SpriteTile->bufferChanged)
+	{
+		SpriteTile->texture->CopyFrom(SpriteTile->afterBuffer);
+		SpriteTile->bufferChanged = false;
+	}
+
+	glm::ivec2 sizeTile = glm::ivec2(SpriteTile->getAfterWidth(), SpriteTile->getAfterHeight());
+	glm::ivec2 sizeMap = glm::ivec2(SpriteMap->getAfterWidth(), -SpriteMap->getAfterHeight());
+	glm::ivec2 viewMin = glm::ivec2(camera::screenToView({ 0,0 }));
+	glm::ivec2 viewMax = glm::ivec2(camera::screenToView({ SCRWIDTH, SCRHEIGHT }));
+	// We need to offset viewMin and max due to having reversed the y inside screenToView
+	viewMin.y = SCRHEIGHT - viewMin.y;
+	viewMax.y = -(viewMax.y - SCRHEIGHT);
+	// flooring the extra value to the nearest tile size
+	glm::ivec2 exess = viewMin - (viewMin % sizeTile);
+	auto tileTransform = Registry.get<Stransform>(spriteEntity);
+
+	shader->Bind();
+	shader->SetInputTexture(0, "c", SpriteTile->texture);
+
+	// Loop over whole screen size, using exess we offset correcty for tiles at 0,0
+	for (int y = exess.y + sizeTile.y; y > viewMax.y - sizeTile.y; y -= sizeTile.y)
+	{
+		for (int x = exess.x - sizeTile.x; x < viewMax.x + sizeTile.x; x += sizeTile.x)
+		{
+			// Only place tile outside of the map
+			if (x <= -sizeTile.x || x >= sizeMap.x ||
+				y >= 0 || y <= sizeMap.y - sizeTile.y)
+			{
+				tileTransform.setTranslation(glm::vec2(x + sizeTile.x / 2, y + sizeTile.y / 2));
+				DrawQuadSprite(shader, tileTransform, SpriteTile->texture, SpriteTile);
+			}
+		}
+
+	}
+	shader->Unbind();
 }
 
 void gamesystem::getTimerData(const std::string& data)

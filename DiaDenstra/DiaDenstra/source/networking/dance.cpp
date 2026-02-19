@@ -426,7 +426,7 @@ bool Dance::Connect(DanceMoves moves, const char* hostIP, const char* port, bool
     }
 
     // Bind only if we use public IP, we dont need it elsewhere
-    if (moves == PUBLIC)
+    if (moves != SAMEDEVICE)
     {
         if (bind(sockfd, res->ai_addr, int(res->ai_addrlen)) == -1)
         {

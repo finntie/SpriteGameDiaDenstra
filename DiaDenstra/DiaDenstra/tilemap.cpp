@@ -3,7 +3,6 @@
 #include "screen.h"
 #include "sprite.h"
 #include "spritetransform.h"
-#include "register.hpp"
 #include "physics.h"
 #include "common.h"
 
@@ -20,7 +19,7 @@ ENABLE_WARNINGS
 #include <list>
 
 
-void tilemap::initTileMap(const char* tileMapImageFile, const char* tileMapFile, const char* vertexPossesFile)
+Entity tilemap::initTileMap(const char* tileMapImageFile, const char* tileMapFile, const char* vertexPossesFile)
 {
 	int width, height, widthTile, heightTile;
 	std::vector<std::vector<glm::vec2>> MapShapes;
@@ -30,7 +29,7 @@ void tilemap::initTileMap(const char* tileMapImageFile, const char* tileMapFile,
 
 	int n;
 	unsigned char* data = stbi_load(tileMapImageFile, &widthTile, &heightTile, &n, 0);
-	if (!data) { printf("error loading file\n"); return; } // load failed
+	if (!data) { printf("error loading file\n"); return entt::null; } // load failed
 
 	//Create sprite
 	Entity spriteEntity = Registry.create();
@@ -39,9 +38,8 @@ void tilemap::initTileMap(const char* tileMapImageFile, const char* tileMapFile,
 	physics::Physics().drawOrder.push_back(spriteEntity);
 	sprite::initEmpty(&Sprite, 1, "TileMapSprite", width * heightTile, height * heightTile); //Heighttile is the size of the tile
 	auto& transform = CreateComponent<Stransform>(spriteEntity);
-	transform.setTranslation({ Sprite.width * 0.5f, Sprite.height * 0.5f + (SCRHEIGHT - Sprite.height)});
+	transform.setTranslation({ Sprite.width * 0.5f, -Sprite.height * 0.5f });
 	float inverseSize = 1.0f / float(heightTile);
-
 	//Load temporarily buffer
 	spriteStr tileMapSprite;
 	sprite::initFromFile(&tileMapSprite, tileMapImageFile, int(float(widthTile) / float(heightTile) + 0.5f), "temporarysprite");
@@ -169,6 +167,8 @@ void tilemap::initTileMap(const char* tileMapImageFile, const char* tileMapFile,
 
 	//Send it
 	physics::Physics().MapShapes = MapShapes;
+
+	return spriteEntity;
 }
 
 std::vector<glm::vec2> tilemap::initSpawnLocations(const char* spawnLocationFile, const char* tileMapImageFile)
@@ -190,7 +190,7 @@ std::vector<glm::vec2> tilemap::initSpawnLocations(const char* spawnLocationFile
 			if (tileMap[x + y * width] != -1)
 			{
 				//Player spawn tile
-				output.push_back(glm::vec2(x * heightTile, SCRHEIGHT - y * heightTile));
+				output.push_back(glm::vec2(x * heightTile, -y * heightTile));
 			}
 		}
 	}

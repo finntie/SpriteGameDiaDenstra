@@ -27,7 +27,7 @@ void physics::createBodyMap()
 		MapShapeB2.clear();
 		for (int j = 0; j < int(MapShapes[i].size()); j++)
 		{
-			MapShapeB2.push_back({ MapShapes[i][j].x * INVERSECENTIMETER, (SCRHEIGHT - MapShapes[i][j].y) * INVERSECENTIMETER });
+			MapShapeB2.push_back({ MapShapes[i][j].x * INVERSECENTIMETER, (-MapShapes[i][j].y) * INVERSECENTIMETER });
 		}
 		MapShapesB2.push_back(MapShapeB2);
 	}

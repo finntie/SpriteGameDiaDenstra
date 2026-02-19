@@ -1,5 +1,6 @@
 #pragma once
 
+#include "register.hpp"
 #include <glm.hpp>
 #include <string>
 #include <vector>
@@ -11,7 +12,7 @@ class tilemap
 
 public:
 
-	static void initTileMap(const char* tileMapImageFile, const char* tileMapFile, const char* vertexPossesFile);
+	static Entity initTileMap(const char* tileMapImageFile, const char* tileMapFile, const char* vertexPossesFile);
 
 	static std::vector<glm::vec2> initSpawnLocations(const char* spawnLocationFile, const char* tileMapImageFile);
 

@@ -30,10 +30,11 @@ public:
 	static void setCameraPos(glm::vec2 pos);
 	static void zoomCamera(glm::vec2 zoom);
 	
-	static void followPosition(glm::vec2 pos);
-
 	//Due to the camera changment, some positions need to be offset.
 	static glm::vec2 screenToView(glm::vec2 value);
+
+	static glm::vec2 getCameraPos();
+	static glm::vec2 getCameraZoom();
 private:
 };
 

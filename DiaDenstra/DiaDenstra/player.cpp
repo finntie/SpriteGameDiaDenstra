@@ -98,7 +98,7 @@ void player::control(Dance& danceObj, float _dt)
 			}
 
 			//camera
-			camera::followPosition(transform.getTranslation());
+			camera::setCameraPos(transform.getTranslation());
 			camera::zoomCamera(glm::vec2(1.5));
 
 			//-------------------------------------------Gun Movement----------------------------------------------------

@@ -265,11 +265,12 @@ void sprite::setFrameSprite(spriteStr* Sprite, int frame)
 	}
 }
 
-Entity sprite::createSpriteToRegistry(const char* file, const char* name, float depth, int frames, glm::vec2 pos, glm::vec2 scale, glm::vec2 widthHeight, float rotation)
+Entity sprite::createSpriteToRegistry(const char* file, const char* name, float depth, int frames, glm::vec2 pos, glm::vec2 scale, glm::vec2 widthHeight, float rotation, float moveWithCamera)
 {
 	Entity spriteEntity = Registry.create();
 	auto& Sprite = CreateComponent<spriteStr>(spriteEntity); 
 	Sprite.depth = depth; 
+	Sprite.moveWithCamera = moveWithCamera;
 	initFromFile(&Sprite, file, frames, name);
 	if (widthHeight.x > 0 && widthHeight.y > 0)
 	{
