@@ -470,6 +470,7 @@ Entity ui::firstChecks(std::string label, glm::vec2 pos, bool defaultLooks, cons
 	{
 		outputEntity = uiEntity->second;
 		spriteStr& Sprite = Registry.get<spriteStr>(outputEntity);
+		Stransform& transform = Registry.get<Stransform>(outputEntity);
 		UILabel& UIL = Registry.get<UILabel>(outputEntity);
 		UIL.active = true;
 
@@ -477,6 +478,10 @@ Entity ui::firstChecks(std::string label, glm::vec2 pos, bool defaultLooks, cons
 		{
 			if (nextScale != glm::vec2(1)) Sprite.localSpriteTransform.setScale(nextScale);
 			else sprite::setSpriteWidthHeight(&Sprite, int(nextWidthHeight.x), int(nextWidthHeight.y));
+		}
+		if (transform.getTranslation() != pos)
+		{
+			transform.setTranslation(pos);
 		}
 	}
 	NextWorldSpace = false;

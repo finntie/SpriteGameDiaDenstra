@@ -23,7 +23,7 @@ Dance::~Dance()
 {
     //If still connections, tell that we disconnected
     const char* message = "Disconnect";
-    for (const auto& pair : them_addrss)
+    for (const auto& pair : themAddrss)
     {
         sendMessage(message, int(strlen(message)), pair.second, false, nullptr);
     }
@@ -48,8 +48,9 @@ Dance::~Dance()
         quitCallBack = true;
         callBackThread.join();
     }
-    them_numbers.clear();
-    them_addrss.clear();
+    themNumbers.clear();
+    themAddrss.clear();
+    timeLastHeardFrom.clear();
 }
 
 void Dance::init(bool useCallBack, bool _ForceIPV4)
@@ -181,8 +182,9 @@ void Dance::Host(DanceMoves moves, int maxConnections, const char* port, bool _f
                 0);
 
             // Add host to map
-            them_addrss.emplace(nameInfoHost, res);
-            them_numbers.emplace(nameInfoHost, 0);
+            themAddrss.emplace(nameInfoHost, res);
+            themNumbers.emplace(nameInfoHost, 0);
+            timeLastHeardFrom.emplace(nameInfoHost, 0.0f);
             //Don't Increase total connections (We do this after we confirmed the connection in holepunching)
             //totalConnections++;
         }
@@ -371,9 +373,9 @@ bool Dance::Connect(DanceMoves moves, const char* hostIP, const char* port, bool
     }
 
     // Add host to map
-    them_addrss.emplace("HOST", res);
-    them_numbers.emplace("HOST", 0);
-
+    themAddrss.emplace("HOST", res);
+    themNumbers.emplace("HOST", 0);
+    timeLastHeardFrom.emplace("HOST", 0.0f);
     
     // --------------------------------------Get Address information for this device--------------------------------
    
@@ -594,7 +596,7 @@ void Dance::holePunch()
     // Create vector of all connections we need to make
     std::vector<struct addrinfo*> futureConnections;
 
-    for (const auto& it : them_addrss)
+    for (const auto& it : themAddrss)
     {
         futureConnections.push_back(it.second);
     }
@@ -658,36 +660,21 @@ void Dance::holePunch()
 
 void Dance::KeepAlive(float dt)
 {
-    if (currentMoves == PUBLIC && isHost)
-    {
-        keepAliveTime -= dt;
-        if (keepAliveTime <= 0.0f)
-        {
-            keepAliveTime = 60.0f;
+    //Send to everyone a 'garbage' message to make sure the connection is still alive
 
-            const char* message = "KeepAliveMessage";
-            // Send message to everyone.
-            for (const auto& pair : them_addrss)
-            {
-                sendMessage(message, int(strlen(message)), pair.second, false, nullptr);
-            }
+    keepAliveTime -= dt;
+    if (keepAliveTime <= 0.0f)
+    {
+        keepAliveTime = 0.5f;
+
+        const char* message = "KeepAliveMessage";
+        // Send message to everyone.
+        for (const auto& pair : themAddrss)
+        {
+            sendMessage(message, int(strlen(message)), pair.second, false, nullptr);
         }
     }
-    //else //Send to everyone a garbage message
-    //{
-    //    quickKeepAliveTime -= dt;
-    //    if (quickKeepAliveTime <= 0.0f)
-    //    {
-    //        quickKeepAliveTime = 0.5f;
 
-    //        const char* message = "KeepAliveMessage";
-    //        // Send message to everyone.
-    //        for (const auto& pair : them_addrss)
-    //        {
-    //            sendMessage(message, int(strlen(message)), pair.second, false, nullptr);
-    //        }
-    //    }
-    //}
 }
 
 void Dance::getPackage(std::string PackageName, bool DeleteMessage, ReturnPackageInfo* packageInfo)
@@ -804,11 +791,23 @@ bool Dance::listen(bool keepChecking)
     quitListening = false;
     while (!quitListening)
     {
+        //Calculate deltatime
+        const auto ms = static_cast<unsigned long long>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count());
+        const auto dt = static_cast<float>(ms - lastTime) * 0.001f;
+        lastTime = ms;
+
+
         const int gotMessage = WSAPoll(&pollfd, 1, 50); // 50 ms timeout
+
+        // Keep connection alive
+        KeepAlive(dt);
+
         if (gotMessage == 0)
         {
             //Not in yet, so in the meantime lets check the important messages
-            checkOnImportantMessages();
+            checkOn(dt, false);
             continue;
         }
         else if (gotMessage < 0)
@@ -878,6 +877,11 @@ bool Dance::listen(bool keepChecking)
                 std::string otherName{};
                 listenBuffer[bufferLen] = '\0';  // Null terminate the received message
 
+
+                //Let's check on the things we need to, this includes important messages and time since last message
+                checkOn(dt, true);
+
+
                 //---------------------------------------------------Important Message?-------------------------------------------
 
                 //Check if it is an important message
@@ -900,9 +904,6 @@ bool Dance::listen(bool keepChecking)
                     }
                 }
 
-                //Let's check on the other important messages
-                checkOnImportantMessages();
-
 
                 //---------------------------------------------------Connection Message?-------------------------------------------
 
@@ -924,7 +925,7 @@ bool Dance::listen(bool keepChecking)
                         }
                     }
                     // Check if it is above our max connections
-                    if (them_addrss.size() >= maxConnections) continue;
+                    if (themAddrss.size() >= maxConnections) continue;
                     ConMessage = true;
                     otherName = &listenBuffer[3];  // Name starts after the 'Con'
                 }
@@ -958,10 +959,12 @@ bool Dance::listen(bool keepChecking)
                     }
                 }
 
-                //---------------------------------------------------Keep Alive Message which is trash-------------------------------------------
+                //---------------------------------------------------Keep Alive Message------------------------------------------------------------
 
                 else if (std::strncmp(listenBuffer, "KeepAlive", 9) == 0)
                 {
+
+
                     continue;
                 }
 
@@ -1052,7 +1055,7 @@ bool Dance::listen(bool keepChecking)
 
                 // Now check if we already had this client
                 bool gotThem = false;
-                for (const auto& it : them_addrss)
+                for (const auto& it : themAddrss)
                 {
                     // Use 2 ways to check, one with the name and otherwise use the sa_data.
                     if (it.first == otherName)
@@ -1069,19 +1072,20 @@ bool Dance::listen(bool keepChecking)
                     printf("Welcome to the network: %s!\n", otherName.c_str());
 
                     // Add to map
-                    them_addrss.emplace(make_pair(otherName, res));
-                    them_numbers.emplace(make_pair(otherName, atPlayerNumber));
+                    themAddrss.emplace(otherName, res);
+                    themNumbers.emplace(otherName, atPlayerNumber);
+                    timeLastHeardFrom.emplace(otherName, 0.0f);
                     atPlayerNumber++;
                     //Send message of our new max connections
                     if (isHost)
                     {
-                        totalConnections = int(them_addrss.size());
+                        totalConnections = int(themAddrss.size());
                         const char* ConAmountMessage = "TotalConCount ";
                         char ConAmountMessage2[50];
                         int size = snprintf(ConAmountMessage2, 50, "%s%i", ConAmountMessage, totalConnections);
 
                         // Iterate over all the other peers
-                        for (const auto& it : them_addrss)
+                        for (const auto& it : themAddrss)
                         {
                             sendMessage(ConAmountMessage2, size, it.second, true, nullptr);
                         }
@@ -1144,11 +1148,11 @@ int Dance::listenImportantMessage(sockaddr_storage themAdrr, int addrSize)
 
     // Create ID based on number from received peer
     std::string fullID{};
-    for (auto it : them_addrss)
+    for (auto it : themAddrss)
     {
         if (isSameAdress(&themAdrr, (sockaddr_storage*)it.second->ai_addr))
         {
-            fullID = std::to_string(them_numbers.at(it.first)) + std::string(message_ID.get()); 
+            fullID = std::to_string(themNumbers.at(it.first)) + std::string(message_ID.get()); 
         }
     }
 
@@ -1291,10 +1295,10 @@ void Dance::listenToAll(sockaddr_storage themAdrr, std::string& otherName)
 {
     std::string message = &listenBuffer[7];
 
-    for (auto& it : them_numbers)
+    for (auto& it : themNumbers)
     {
         if (it.second != 0 &&
-            !isSameAdress(&themAdrr, (sockaddr_storage*)them_addrss.at(it.first)->ai_addr))
+            !isSameAdress(&themAdrr, (sockaddr_storage*)themAddrss.at(it.first)->ai_addr))
         {
             sendMessageTo(message, it.second, false, false, false);
         }
@@ -1307,23 +1311,21 @@ void Dance::listenToAll(sockaddr_storage themAdrr, std::string& otherName)
     while (i < strlen(listenBuffer) && listenBuffer[i] != ':') otherName += listenBuffer[i++];
 }
 
-void Dance::checkOnImportantMessages()
+void Dance::checkOn(const float dt, const bool newMessage)
 {
-    //Check on the other important messages in array
-    if (!importantSendMessages.empty())
+    timeSinceCheckedOn += dt;
+
+    // We do not need to check every frame, 
+    // and with not checking every frame, we leave more time to the listen() function to retrieve messages
+    if (timeSinceCheckedOn > 0.1f)
     {
-        const auto ms = static_cast<unsigned long long>(
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count());
-        const auto dt = static_cast<float>(ms - lastTime) * 0.001f;
-        lastTime = ms;
-        timeCheckedImp += dt;
+        timeSinceCheckedOn = 0.0f;
 
-        //Did enough time passed?
-        if (timeCheckedImp > 0.1f)
+
+        //----------- Check On Important Messages -------------
+
+        if (!importantSendMessages.empty())
         {
-            timeCheckedImp = 0.0f;
-
             std::string eraseMessage{};
             for (auto& it : importantSendMessages)
             {
@@ -1349,9 +1351,9 @@ void Dance::checkOnImportantMessages()
 
                     const std::string impReturnMessage = "Imp" + it.second.ID + " " + it.second.message; //Succes Important
 
-                    for (const auto& pair : them_addrss)
+                    for (const auto& pair : themAddrss)
                     {
-                        if (them_numbers.at(pair.first) == userID)  // Send to this one
+                        if (themNumbers.at(pair.first) == userID)  // Send to this one
                         {
                             sendMessage(impReturnMessage.c_str(), int(impReturnMessage.size()), pair.second, false, nullptr);
                         }
@@ -1366,6 +1368,38 @@ void Dance::checkOnImportantMessages()
             }
         }
     }
+
+    //----------- Check On Last Time Since Message From Player -------------
+
+    std::vector<std::string> markForDeletePlayer;
+
+    for (auto& it : timeLastHeardFrom)
+    {
+        if (newMessage)
+        {
+            // If we got a new message, reset the timer
+            it.second = 0.0f;
+        }
+        else
+        {
+            // Increase timer
+            it.second += dt;
+            printf("Time since: %f, dt: %f\n", it.second, dt);
+            // If too long no messages
+            if (it.second >= timeBeforeDisconnection)
+            {
+                markForDeletePlayer.push_back(it.first);
+            }
+        }
+    }
+    // Loop to delete connection
+    for (int i = int(markForDeletePlayer.size()) - 1; i >= 0; i--)
+    {
+        addrinfo* addr = themAddrss.at(markForDeletePlayer[i]);
+        // Remove from connection
+        handleDisconnection(*(sockaddr_storage*)addr->ai_addr, int(addr->ai_addrlen));
+    }
+
 }
 
 // Using help from chatGPT
@@ -1416,8 +1450,8 @@ void Dance::resetState()
     useCallBackFunctions = false;
     forceIPV4 = false;
 
-    them_addrss.clear();
-    them_numbers.clear();
+    themAddrss.clear();
+    themNumbers.clear();
     holePunchConfirmedConnections.clear();
 }
 
@@ -1463,11 +1497,11 @@ void Dance::sendMessage(const char* message, int message_size, addrinfo* adress,
 
         // Find key
         int peerNumber = -1;
-        for (const auto it : them_addrss) 
+        for (const auto it : themAddrss) 
         {
-            if (isSameAdress((sockaddr_storage*)adress->ai_addr, (sockaddr_storage*)them_addrss.at(it.first)->ai_addr))
+            if (isSameAdress((sockaddr_storage*)adress->ai_addr, (sockaddr_storage*)themAddrss.at(it.first)->ai_addr))
             {
-                peerNumber = them_numbers.at(it.first);
+                peerNumber = themNumbers.at(it.first);
                 break;
             }
         }
@@ -1523,10 +1557,10 @@ void Dance::sendMessage(const char* message, int message_size, addrinfo* adress,
         std::string messageString;
         if (important) {
             int peerNumber = -1;
-            for (const auto it : them_addrss) {
-                if (isSameAdress((sockaddr_storage*)adress->ai_addr, (sockaddr_storage*)them_addrss.at(it.first)->ai_addr))
+            for (const auto it : themAddrss) {
+                if (isSameAdress((sockaddr_storage*)adress->ai_addr, (sockaddr_storage*)themAddrss.at(it.first)->ai_addr))
                 {
-                    peerNumber = them_numbers.at(it.first);
+                    peerNumber = themNumbers.at(it.first);
                     break;
                 }
             }
@@ -1576,40 +1610,48 @@ bool Dance::handleDisconnection(sockaddr_storage input, int inputSize)
     bool disconnected = false;
     // Check if we got this in our vector
     const addrinfo* res = storageToAddrInfo(input, inputSize);
+    std::string peerToRemove{};
 
-    for (const auto& it : them_addrss)
+    for (const auto& it : themAddrss)
     {
         if (isSameAdress((sockaddr_storage*)res->ai_addr, (sockaddr_storage*)it.second->ai_addr))
         {
-            // remove from vector
-            printf("Peer %s has disconnected...\n", it.first.c_str());
-            disconnectedUserIDs.push_back(them_numbers.at(it.first));
-            them_numbers.erase(it.first);
-            them_addrss.erase(it.first);
-            disconnected = true;
-
-            //Update total amount of connections to all peers if host
-            if (isHost)
-            {
-                totalConnections = int(them_addrss.size());
-                const char* ConAmountMessage = "TotalConCount ";
-                char ConAmountMessage2[50];
-                const int size = snprintf(ConAmountMessage2, 50, "%s%i", ConAmountMessage, totalConnections);
-
-                // Iterate over all the other peers
-                for (const auto& it2 : them_addrss)
-                {
-                    sendMessage(ConAmountMessage2, size, it2.second);
-                }
-            }
-            else
-            {
-                //Reset state, since our host was our everything
-                resetState();
-            }
-            return disconnected;
+            peerToRemove = it.first;
         }
     }
+
+    if (!peerToRemove.empty())
+    {
+        // remove from vector
+        printf("Peer %s has disconnected...\n", peerToRemove.c_str());
+        disconnectedUserIDs.push_back(themNumbers.at(peerToRemove));
+        themNumbers.erase(peerToRemove);
+        themAddrss.erase(peerToRemove);
+        timeLastHeardFrom.erase(peerToRemove);
+        disconnected = true;
+
+        //Update total amount of connections to all peers if host
+        if (isHost)
+        {
+            totalConnections = int(themAddrss.size());
+            const char* ConAmountMessage = "TotalConCount ";
+            char ConAmountMessage2[50];
+            const int size = snprintf(ConAmountMessage2, 50, "%s%i", ConAmountMessage, totalConnections);
+
+            // Iterate over all the other peers
+            for (const auto& it2 : themAddrss)
+            {
+                sendMessage(ConAmountMessage2, size, it2.second);
+            }
+        }
+        else
+        {
+            //Reset state, since our host was our everything
+            resetState();
+        }
+        return disconnected;
+    }
+    
     return disconnected;
 }
 
@@ -1906,9 +1948,9 @@ void Dance::sendMessageTo(std::string message, int themID, bool toHost, bool toA
     if (isHost)
     {
         // Iterate of numbers
-        for (const auto& pair : them_addrss)
+        for (const auto& pair : themAddrss)
         {
-            if (toAll || them_numbers.at(pair.first) == themID)  // Send to this one
+            if (toAll || themNumbers.at(pair.first) == themID)  // Send to this one
             {
                 sendMessage(message.c_str(), int(message.size()), pair.second, important, nullptr);
 
@@ -1930,21 +1972,21 @@ void Dance::sendMessageTo(std::string message, int themID, bool toHost, bool toA
             const std::string DataMessage = "-ToHo " + message;
 
             // Send the message to host
-            sendMessage(DataMessage.c_str(), int(DataMessage.size()), them_addrss.at("HOST"), important, nullptr);
+            sendMessage(DataMessage.c_str(), int(DataMessage.size()), themAddrss.at("HOST"), important, nullptr);
         }
         else if (toAll)
         {
             const std::string DataMessage = "-ToAll " + message;
 
             // Send the message to host
-            sendMessage(DataMessage.c_str(), int(DataMessage.size()), them_addrss.at("HOST"), important, nullptr);
+            sendMessage(DataMessage.c_str(), int(DataMessage.size()), themAddrss.at("HOST"), important, nullptr);
         }
         else// Send to the host which will send it to the right user
         {
             const std::string DataMessage = "-ToCl-" + std::to_string(themID) + " " + message;
 
             // Send the message to host
-            sendMessage(DataMessage.c_str(), int(DataMessage.size()), them_addrss.at("HOST"), important, nullptr);
+            sendMessage(DataMessage.c_str(), int(DataMessage.size()), themAddrss.at("HOST"), important, nullptr);
         }
     }
 }
@@ -1971,10 +2013,10 @@ void Dance::sendPackage(std::string PackageName, bool important)
         preparePackage(PackageName.c_str(), dataPackage);
 
         // Iterate over all the other peers
-        for (const auto& it : them_addrss)            
+        for (const auto& it : themAddrss)            
         {
             //Don't send to host (ourself)
-            if (them_numbers.find(it.first)->second == peer_ID) continue;
+            if (themNumbers.find(it.first)->second == peer_ID) continue;
 
             //TODO: possibly just use a char
             std::string dataMessageString = dataPackage;
@@ -1988,10 +2030,10 @@ void Dance::sendPackage(std::string PackageName, bool important)
         snprintf(dataPackage, MAXPACKAGESIZE, "-ToAll ");
         preparePackage(PackageName.c_str(), dataPackage + strlen(dataPackage));
 
-        if (them_addrss.size() > 0)
+        if (themAddrss.size() > 0)
         {
             std::string dataMessageString = dataPackage;
-            sendMessage(dataMessageString.c_str(), int(dataMessageString.size()), them_addrss.at("HOST"), important, nullptr);
+            sendMessage(dataMessageString.c_str(), int(dataMessageString.size()), themAddrss.at("HOST"), important, nullptr);
         }
     }
 }

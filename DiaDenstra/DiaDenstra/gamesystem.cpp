@@ -470,15 +470,16 @@ void gamesystem::running(float dt)
 						physics::Physics().drawOrder.push_back(Registry.get<playerStr>(playerEntity).gun.gunEntity);
 					}
 				}
-
+				
 				danceObj->AddDataToParameter("PlayerName", 0, playerObj.getOwnPlayerNumber());
 				std::string name = player::getName(false);
 				if (name == "None" || name.empty()) name = player::getName(true);
 				playerObj.setName(playerObj.getOwnPlayerNumber(), name.c_str());
 				danceObj->AddDataToParameter("PlayerName", 1, name);
-
 				danceObj->sendPackage("PlayerName", true);
 				printf("Send my own name to all other connections\n");
+
+				playerObj.setArrows(danceObj->getTotalConnections());
 
 				gamestateInitTrack++;
 			}
@@ -544,7 +545,7 @@ void gamesystem::running(float dt)
 		{
 			physics::Physics().update(dt);
 
-			playerObj.control(*danceObj, dt);
+			playerObj.update(*danceObj, dt);
 			playerObj.updateOthers(*danceObj, dt);
 
 			//---------------------------------------------Show Time Left--------------------------------------------------

@@ -255,6 +255,7 @@ private:
     /// or a new client connected</param>
     bool listen(bool KeepChecking);
 
+    /// <summary> Helper functions from within the listen() function </summary>
     int listenImportantMessage(sockaddr_storage themAdrr, int addrSize);
     int listenSuccesImportantMessage();
     int listenTotalConCount();
@@ -262,7 +263,7 @@ private:
     void listenToHost(std::string& otherName);
     void listenToAll(sockaddr_storage themAdrr, std::string& otherName);
 
-    void checkOnImportantMessages();
+    void checkOn(const float dt, const bool newMessage);
 
     /// <summary>Keeps sending messages to all connections until connection is made</summary>
     void holePunch();
@@ -290,6 +291,10 @@ private:
     /// <param name="toUserID">User it is going to be send to</param>
     importantMesStruct addImportantMessage(std::string& message, const int toUserID);
 
+    /// <summary>Handles disconnection from this user </summary>
+    /// <param name="input">address of user</param>
+    /// <param name="inputSize">size of address</param>
+    /// <returns>if user was successfully disconnected</returns>
     bool handleDisconnection(sockaddr_storage input, int inputSize);
 
     /// <summary>Converts sockaddr_storage to addrinfo*</summary>
@@ -341,8 +346,7 @@ private:
     // Other important information
     char listenBuffer[MAXPACKAGESIZE]{};
     char dataPackage[MAXPACKAGESIZE]{};
-    float keepAliveTime = 60.0f;
-    float quickKeepAliveTime = 0.5f;
+    float keepAliveTime = 0.5f;
     int maxConnections = 10;  // Standard is 10
     std::deque<std::string> receivedMessages{};
     std::unordered_map<std::string, importantMesStruct> importantSendMessages{};
@@ -361,7 +365,10 @@ private:
     unsigned int atImpMessage = 1;
     unsigned int atLongMessage = 1;
     unsigned long long lastTime = 0;
-    float timeCheckedImp = 0.0f;
+    float timeSinceCheckedOn = 0.0f;
+
+    // Constants
+    const float timeBeforeDisconnection = 2.5f;
 
     // thread safety
     std::mutex messageVectorMutex;
@@ -371,8 +378,9 @@ private:
     std::map<std::string, std::vector<std::variant<int, float, unsigned, const char*, std::string, double, bool>>> packageMap{};
 
     // Map of others, key = name
-    std::map<std::string, struct addrinfo*> them_addrss{};
-    std::map<std::string, int> them_numbers{};
+    std::map<std::string, struct addrinfo*> themAddrss{};
+    std::map<std::string, int> themNumbers{};
+    std::map<std::string, float> timeLastHeardFrom{};
     // Vector of connections that are confirmed.
     std::vector<struct addrinfo*> holePunchConfirmedConnections{};
 };

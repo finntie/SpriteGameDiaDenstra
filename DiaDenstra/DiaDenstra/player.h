@@ -54,7 +54,8 @@ public:
 
 	void init(Dance& danceObj);
 
-	void control(Dance& danceObj, float dt);
+
+	void update(Dance& danceObj, float dt);
 
 	void updateOthers(Dance& danceObj, float dt);
 
@@ -76,6 +77,7 @@ public:
 	static void writeName(const char* name);
 	static std::string getName(bool random);
 	static void setName(int playerNumber, const char* name);
+	void setArrows(const int totalPlayers);
 
 	std::vector<glm::vec2> spawnPositions;
 
@@ -86,16 +88,28 @@ private:
 	Entity createHandAABB(glm::vec2 pos, std::string name, int playerNumber);
 	Entity createBullet(glm::vec2 pos, float direction, std::string name, int Type, int playerNumber, float speed = 300.0f, int health = 1, float lifetime = 32.0f);
 
+	void handleDisconnection(Dance& danceObj);
+
+	void scrollBar(gunInfo& gun);
+
 	int ownPlayerNumber = 0;
+
+	// Default state
+	int MAXJUMPS = 2;
+	float JUMPCOOLDOWN = 0.1f;
 
 	float jumpTimer = 0.0f;
 	int jumpSensorID = 0;
 	int totalTouchingGroundAmount = 0;
 	bool canJump = false;
+	int jumpsRemaining = MAXJUMPS;
 	bool shot = false;
 	Entity newBulletEntity;
 	int newBulletType = 0;
 	float deathCooldown = 5.0f;
+
+	std::vector<Entity> pointArrowToPlayer{};
+
 
 	float updateGunRotation = 0.0f;
 	float shootCooldown = 0.0f;

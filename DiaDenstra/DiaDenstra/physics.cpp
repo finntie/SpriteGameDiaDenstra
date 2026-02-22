@@ -73,7 +73,7 @@ void physics::createBody(const Entity& entity, const shape Shape, const type Typ
 	}
 
 	b2ShapeDef shapeDef = b2DefaultShapeDef();
-	shapeDef.density = 981.0f; //Humdan body density
+	shapeDef.density = 5.0f; // Surface area * density = mass
 	shapeDef.friction = 0.0f;
 
 	if (category != none) shapeDef.filter.categoryBits = category; 
@@ -551,22 +551,12 @@ void physics::update(float dt)
 			Player = Registry.try_get<playerStr>(spriteEntity);
 			if (Player != nullptr) //TODO: check if it our own player
 			{
-				b2Body_ApplyForceToCenter(body, { transform.getVel().x * 10000000, 0 }, true);
-				//Air velocity
+				// Using method from box2D tutorial https://www.iforce2d.net/b2dtut/constant-speed
+
 				b2Vec2 vel = b2Body_GetLinearVelocity(body);
-				float maxSpeed = 30.5f;
-				b2Body_SetLinearVelocity(body, { vel.x * 0.85f, vel.y > 0 ? vel.y * 0.95f : vel.y });
-				
-				//From ChatGPT.
-				if (fabs(vel.x) > maxSpeed) {
-					vel.x = (vel.x / fabs(vel.x)) * maxSpeed;
-					b2Body_SetLinearVelocity(body, vel);
-				}
-
-				//printf("X: %f, Y: %f \n", vel.x, vel.y);
-			//if (vel.x > 5.0f) b2Body_SetLinearVelocity(body, {5, vel.y });
-			//if (vel.x < -5.0f) b2Body_SetLinearVelocity(body, { -5, vel.y });
-
+				float velChange = transform.getVel().x - vel.x;
+				float impulse = b2Body_GetMass(body) * velChange;
+				b2Body_ApplyLinearImpulseToCenter(body, { impulse, 0 }, true);
 			}
 
 			checkAABBSensor();
@@ -595,9 +585,12 @@ void physics::jump(Entity entity)
 	Body = Registry.try_get<b2BodyId>(entity);
 	if (Body != nullptr)
 	{
+		float mass = b2Body_GetMass(*Body);
+		float jumpVelocity = 50.0f;
 		
+		//First make sure that our y velocity is 0 and then apply velocity, else we possibly bounce or jump lower
 		b2Body_SetLinearVelocity(*Body, { b2Body_GetLinearVelocity(*Body).x, 0.0f });
-		b2Body_ApplyLinearImpulseToCenter(*Body, { 0,800000 }, true);
+		b2Body_ApplyLinearImpulseToCenter(*Body, { 0, mass * jumpVelocity}, true);
 	}
 	else
 	{

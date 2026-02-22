@@ -303,5 +303,5 @@ void screen::InitCharset()
 	char c[] = "abcdefghijklmnopqrstuvwxyz0123456789!?:=,.-() #'*/+";
 	int i;
 	for (i = 0; i < 256; i++) transl[i] = 45;
-	for (i = 0; i < 50; i++) transl[(unsigned char)c[i]] = i;
+	for (i = 0; i < 51; i++) transl[(unsigned char)c[i]] = i;
 }

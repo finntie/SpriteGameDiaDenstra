@@ -38,7 +38,7 @@ void player::init(Dance& danceObj)
 
 }
 
-void player::control(Dance& danceObj, float _dt)
+void player::update(Dance& danceObj, float _dt)
 {
 	dt = _dt;
 	jumpTimer -= dt;
@@ -49,6 +49,8 @@ void player::control(Dance& danceObj, float _dt)
 	int frameCheck = checkedFrame1;
 	Entity ourEntity{};
 	newBulletEntity = entt::null;
+
+	handleDisconnection(danceObj);
 
 	for (const auto& [entity, Player, transform] : Registry.view<playerStr, Stransform>().each())
 	{
@@ -73,8 +75,17 @@ void player::control(Dance& danceObj, float _dt)
 					totalTouchingGroundAmount -= Jump.y;
 					//printf("totalTouch: %i\n", totalTouchingGroundAmount);
 				}
-				if (totalTouchingGroundAmount > 0) canJump = true;
-				else canJump = false;
+				if (totalTouchingGroundAmount > 0)
+				{
+					canJump = true;
+					jumpsRemaining = 2;
+				}
+				else
+				{
+					canJump = false;
+					// Make sure you can not perform your original jump
+					if (jumpsRemaining == MAXJUMPS) jumpsRemaining--;
+				}
 				//Should Never happen, but you never know
 				if (totalTouchingGroundAmount < 0) totalTouchingGroundAmount = 0;
 			}
@@ -82,19 +93,23 @@ void player::control(Dance& danceObj, float _dt)
 
 			//-------------------------------------------Movement----------------------------------------------------
 
+			const float DESIREDMOVEMENTSPEED = 40.0f;
+
 			if (input::Input().getKeyDown(input::Key::A))
 			{
-				transform.setVel({ -1, 0 });
-
+				transform.setVel({ -DESIREDMOVEMENTSPEED, 0 });
 			}
 			if (input::Input().getKeyDown(input::Key::D))
 			{
-				transform.setVel({ 1, 0 });
+				transform.setVel({ DESIREDMOVEMENTSPEED, 0 });
 			}
-			if (input::Input().getKeyDown(input::Key::Space) && jumpTimer <= 0.0f && canJump)
+			//When having max jump, you can perform this original jump while holding space, else you can perform the double jump when pressing space again
+			if (jumpsRemaining == MAXJUMPS && input::Input().getKeyDown(input::Key::Space) && jumpTimer <= 0.0f ||
+				jumpsRemaining > 0 && input::Input().getKeyDownOnce(input::Key::Space) && jumpTimer <= 0.0f)
 			{
+				jumpsRemaining--;
 				physics::Physics().jump(entity);
-				jumpTimer = 0.1f;
+				jumpTimer = JUMPCOOLDOWN;
 			}
 
 			//camera
@@ -115,7 +130,6 @@ void player::control(Dance& danceObj, float _dt)
 
 			if (updateGunRotation <= 0.0f) //Prevent too many atan2 calculations.
 			{
-				
 				gunTransform.setRotation(rotation);
 				updateGunRotation = 0.04f;
 			}
@@ -147,11 +161,14 @@ void player::control(Dance& danceObj, float _dt)
 
 			//-------------------------------------------Gun Interaction----------------------------------------------------
 
+			//Showing scrollbar
+			scrollBar(Player.gun);
+
 			//Switching gun
 			if (input::Input().getCurrentMouseScroll() != 0)
 			{
 				int index = Player.gun.activeType + int(input::Input().getCurrentMouseScroll());
-				
+
 				if (index < 0) index = int(Player.gun.inventory.size()) - (std::abs(index) % Player.gun.inventory.size());
 				else index = index % Player.gun.inventory.size();
 
@@ -229,33 +246,145 @@ void player::control(Dance& danceObj, float _dt)
 			{
 				ui::UI().image("PlayerHealthBackground", { 100.0f, SCRHEIGHT - 32.0f }, "assets/uiSprites/textBackgroundHalf.png", 10);
 				ui::UI().setNextSize(2.0f, 2.0f);
-				ui::UI().text("PlayerHealthText", std::to_string(int(Player.health)).c_str(), { 100.0f, SCRHEIGHT - 32.0f});
+				ui::UI().text("PlayerHealthText", std::to_string(int(Player.health)).c_str(), { 100.0f, SCRHEIGHT - 32.0f });
 			}
 
 			//------------------------------------------Show Player's Bullets Left--------------------------------------------------
 			{
 				int xOffset = 32;
-				for (int i = 0; i < Player.gun.bulletsLeft[Player.gun.activeType]; i++)
+				ui::UI().image("BulletHolder", { SCRWIDTH - 156, SCRHEIGHT - 32.0f }, "assets/uiSprites/BulletHolder.png", 9, 0, 0);
+
+				const int maxBullets = 14;
+				const int totalBullets = Player.gun.bulletsLeft[Player.gun.activeType];
+
+				if (typeReloading == -1)
 				{
-					char label[16];
-					sprintf_s(label, sizeof(label), "BulletLeft%d", i);
-					ui::UI().image(label, { SCRWIDTH - xOffset, SCRHEIGHT - 32.0f }, "assets/uiSprites/bulletsUI.png", 10);
-					xOffset += 16;
+					for (int i = 0; i < min(totalBullets, maxBullets); i++)
+					{
+						char label[16];
+						sprintf_s(label, sizeof(label), "BulletLeft%d", i);
+						ui::UI().image(label, { SCRWIDTH - xOffset, SCRHEIGHT - 35.0f }, "assets/uiSprites/bulletsUI.png", 10);
+						xOffset += 16;
+					}
+					if (totalBullets >= maxBullets)
+					{
+						char label[16];
+						sprintf_s(label, sizeof(label), "+%i", totalBullets - maxBullets);
+						ui::UI().setNextSize(2, 2);
+						ui::UI().text("AmountBulletsLeftText", label, { SCRWIDTH - xOffset - 8, SCRHEIGHT - 35 });
+					}
+					else if (totalBullets == 0)
+					{
+						ui::UI().setNextSize(2, 2);
+						ui::UI().text("PressRToReloadText", "R to reload", { SCRWIDTH - 156, SCRHEIGHT - 35 });
+					}
 				}
 			}
 			//------------------------------------------------Show Reload Time--------------------------------------------------
 			{
 				if (typeReloading != -1)
 				{
-					ui::UI().image("PlayerHealthBackground", { SCRWIDTH - 128, SCRHEIGHT - 64 }, "assets/uiSprites/textBackgroundHalf.png", 10);
+					//ui::UI().image("ReloadBackground", { SCRWIDTH - 128, SCRHEIGHT - 64 }, "assets/uiSprites/textBackgroundHalf.png", 10);
 					char text[16];
 					sprintf_s(text, sizeof(text), "Reloading: %.1f", shootCooldown);
 					ui::UI().setNextSize(2.0f, 2.0f);
-					ui::UI().text("ReloadTimeLeft", text, { SCRWIDTH - 96, SCRHEIGHT - 64 });
+					ui::UI().text("ReloadTimeLeft", text, { SCRWIDTH - 156, SCRHEIGHT - 35 });
 				}
 			}
 
-		}
+			//-------------------------------------Indication towards other players---------------------------------------------
+
+			//Loop over all other players
+			for (const auto& [entity2, Player2, transform2] : Registry.view<playerStr, Stransform>().each())
+			{
+				if (Player2.playerNumber != ownPlayerNumber && Player2.health > 0.0f)
+				{
+					Entity spriteEntityArrow = pointArrowToPlayer[Player2.playerNumber];
+					auto& transformArrow = Registry.get<Stransform>(spriteEntityArrow);
+
+					glm::vec2 viewMin = camera::screenToView({ 0,0 });
+					glm::vec2 viewMax = camera::screenToView({ SCRWIDTH, SCRHEIGHT });
+					// We need to offset viewMin and max due to having reversed the y inside screenToView
+					viewMin.y = SCRHEIGHT - viewMin.y;
+					viewMax.y = -(viewMax.y - SCRHEIGHT);
+
+					glm::vec2 pos = transform2.getTranslation();
+					glm::vec2 ownPos = transform.getTranslation();
+
+					const bool l = pos.x < viewMin.x;
+					const bool r = pos.x > viewMax.x;
+					const bool d = pos.y < viewMax.y;
+					const bool u = pos.y > viewMin.y;
+
+					if (l || r || u || d)
+					{
+						const float tiny = 1e-30f;
+						// Move vector to be from (0,0)
+						glm::vec2 dist = pos - ownPos;
+						viewMin -= ownPos;
+						viewMax -= ownPos;
+
+						// y = aX
+						// a = y / x
+						// y = viewMin.y -> y = ax -> x = y / a -> x = viewMin.y / a
+						// x = viewMin.x -> y = ax ->			-> y = viewMin.x * a
+
+						// Get all intersections with the wall
+						float a = dist.y / (dist.x + tiny);
+						glm::vec2 intersectPosUp = { viewMin.y / (a + tiny), viewMin.y };
+						glm::vec2 intersectPosRight = { viewMax.x, viewMax.x * a };
+						glm::vec2 intersectPosDown = { viewMax.y / (a + tiny), viewMax.y };
+						glm::vec2 intersectPosLeft = { viewMin.x, viewMin.x * a };
+
+						// Check if we intersected on the vertical or horizontal part
+						const bool horizontal = (intersectPosRight.y > viewMax.y && intersectPosRight.y < viewMin.y) || (intersectPosLeft.y > viewMax.y && intersectPosLeft.y < viewMin.y);
+						const bool vertical = (intersectPosUp.x > viewMin.x && intersectPosUp.x < viewMax.x) || (intersectPosDown.x > viewMin.x && intersectPosDown.x < viewMax.x);
+
+						const float offset = 32.0f;
+
+						// Only 1 of these 4 statements should be true, calculating the exact intersection point
+						glm::vec2 finalIntersect{};
+						if (u && vertical) finalIntersect = intersectPosUp - glm::vec2(0, offset);
+						if (d && vertical) finalIntersect = intersectPosDown - glm::vec2(0, -offset);
+						if (r && horizontal) finalIntersect = intersectPosRight - glm::vec2(offset, 0);
+						if (l && horizontal) finalIntersect = intersectPosLeft - glm::vec2(-offset, 0);
+
+						// Get direction for the rotation
+						glm::vec2 dir = normalize(pos - ownPos);
+						float rotation = glm::degrees(atan2(dir.y, dir.x));
+
+						finalIntersect += ownPos;
+
+						transformArrow.setTranslation(finalIntersect);
+						transformArrow.setRotation(rotation);
+					}
+					else
+					{
+						// Put it away
+						transformArrow.setTranslation({ -1000, 1000 });
+					}
+
+				}
+				else if (Player2.health <= 0.0f)
+				{
+					// Put it away
+					Entity spriteEntityArrow = pointArrowToPlayer[Player2.playerNumber];
+					auto& transformArrow = Registry.get<Stransform>(spriteEntityArrow);
+					transformArrow.setTranslation({ -1000, 1000 });
+				}
+
+				
+				//TODO: possibly name next to arrow?
+				
+				//std::string textLabel = "PlayerNameText";
+				//textLabel += std::to_string(Player.playerNumber);
+				//ui::UI().setNextSize(1.2f, 1.2f);
+				//glm::vec2 namePos = glm::vec2({ transform.getTranslation().x, transform.getTranslation().y + 25 });
+				//ui::UI().setNextWorldSpace();
+				//ui::UI().text(textLabel.c_str(), Player.playerName.c_str(), namePos, 4288421649);
+
+			}
+		}	
 		else if (Player.playerNumber == ownPlayerNumber) //Player is dead
 		{
 			ui::UI().image("DeadImageBackground", { SCRWIDTH * 0.5f, SCRHEIGHT * 0.5f }, "assets/uiSprites/backgroundMenu.png", 15);
@@ -278,6 +407,11 @@ void player::control(Dance& danceObj, float _dt)
 				Player.health = 100.0f;
 				Player.healthStatus = 1;
 				totalTouchingGroundAmount = 0;
+				for (int i = 0; i < int(Player.gun.inventory.size()); i++)
+				{
+					Player.gun.bulletsLeft[i] = maxBullets[i];
+				}
+
 				//TODO: invernability
 
 				danceObj.AddDataToParameter("OurPlayerHit", 0, ownPlayerNumber);
@@ -338,6 +472,7 @@ void player::control(Dance& danceObj, float _dt)
 				ui::UI().setNextWorldSpace();
 				ui::UI().text(textLabel.c_str(), Player.playerName.c_str(), namePos, 4288421649);
 			}
+
 		}
 
 		//-------------------------------------------Respawn or died----------------------------------------------------
@@ -723,7 +858,7 @@ Entity player::createOwnPlayer(glm::vec2 pos, int number)
 	physics::Physics().createSensor(spriteEntity, physics::ownplayer, physics::ground, glm::vec2(0, -22.5f), 5.0f, jumpSensorID);
 
 	//Create pistol entity
-	Entity gunEntity = sprite::createSpriteToRegistry("assets/glock.png", "Gun", 11.0f, 6, pos);
+	Entity gunEntity = sprite::createSpriteToRegistry("assets/guns/glock.png", "Gun", 11.0f, 6, pos);
 	Player.gun.gunEntity = gunEntity;
 	initGunType(Player, gunInfo::PISTOL);
 	Player.gun.inventory.push_back(1);
@@ -757,7 +892,7 @@ Entity player::createPlayerInstance(glm::vec2 pos, int number)
 	Player.playerNumber = number;
 	physics::Physics().createBody(spriteEntity, physics::capsule, physics::kinematic, pos, { {0,12.5},{0,-12.5},{12.5,12.5} }, physics::player, physics::none, number + 1);
 
-	Entity gunEntity = sprite::createSpriteToRegistry("assets/glock.png", "Gun", 11.0f, 6, pos);
+	Entity gunEntity = sprite::createSpriteToRegistry("assets/guns/glock.png", "Gun", 11.0f, 6, pos);
 	Player.gun.gunEntity = gunEntity;
 
 	return spriteEntity;
@@ -841,6 +976,25 @@ void player::setName(int playerNumber, const char* name)
 	}
 }
 
+void player::setArrows(const int totalPlayers)
+{
+	pointArrowToPlayer.resize(totalPlayers + 1);
+
+	for (const auto& [entity, player] : Registry.view<playerStr>().each())
+	{
+		if (player.playerNumber != ownPlayerNumber)
+		{
+			char name[16];
+			sprintf_s(name, sizeof(name), "pointArrow%i", player.playerNumber);
+			Entity arrowEntity = sprite::createSpriteToRegistry("assets/uiSprites/pointArrow.png", name, 11.0f, 1, { 0,0 }, {0.5, 0.5});
+
+			pointArrowToPlayer[player.playerNumber] = arrowEntity;
+			physics::Physics().drawOrder.push_back(arrowEntity);
+
+		}
+	}
+}
+
 void player::initGunType(playerStr& Player, gunInfo::type gunType)
 {
 	auto& Sprite = Registry.get<spriteStr>(Player.gun.gunEntity);
@@ -888,7 +1042,7 @@ void player::initGunType(playerStr& Player, gunInfo::type gunType)
 
 Entity player::createHandAABB(glm::vec2 pos, std::string name, int playerNumber)
 {
-	Entity handEntity = sprite::createParticle("assets/handParticle.png", 4, 0, 0.05f, pos);
+	Entity handEntity = sprite::createParticle("assets/guns/handParticle.png", 4, 0, 0.05f, pos);
 	physics::Physics().drawOrder.push_back(handEntity);
 	uint64_t mask = physics::player | physics::ownplayer;
 	physics::Physics().createAABBboxSensor(handEntity, pos, 16, 16, mask, playerNumber + 1, name, handSensorID);
@@ -897,7 +1051,7 @@ Entity player::createHandAABB(glm::vec2 pos, std::string name, int playerNumber)
 
 Entity player::createBullet(glm::vec2 pos, float rotation, std::string name, int Type, int playerNumber, float speed, int health, float lifeTime)
 {
-	Entity bulletEntity = sprite::createSpriteToRegistry("assets/basicbullet.png", name.c_str(), 9.0f, 6, pos, {1,1}, {0,0}, rotation);
+	Entity bulletEntity = sprite::createSpriteToRegistry("assets/guns/basicbullet.png", name.c_str(), 9.0f, 6, pos, {1,1}, {0,0}, rotation);
 	auto& Sprite = Registry.get<spriteStr>(bulletEntity);
 	sprite::setFrameSprite(&Sprite, Type - 1);
 	physics::Physics().drawOrder.push_back(bulletEntity);
@@ -909,4 +1063,87 @@ Entity player::createBullet(glm::vec2 pos, float rotation, std::string name, int
 	bullet.health = 1;
 	if (Type == 5) bullet.health = 4;
 	return bulletEntity;
+}
+
+void player::handleDisconnection(Dance& danceObj)
+{
+	std::vector<Entity> playersToDestroy{};
+
+	for (const auto& [entity, Player, transform] : Registry.view<playerStr, Stransform>().each())
+	{
+		//First we need to check if a player has disconnected
+		if (danceObj.isDisconnected(Player.playerNumber, true))
+		{
+			pointArrowToPlayer[Player.playerNumber] = entt::null;
+
+			playersToDestroy.push_back(Player.gun.gunEntity);
+			playersToDestroy.push_back(entity);
+
+		}
+	}
+
+	// Destroy the player
+	for (int i = 0; i < int(playersToDestroy.size()); i++)
+	{
+		for (int j = 0; j < physics::Physics().drawOrder.size(); j++)
+		{
+			if (physics::Physics().drawOrder[j] == playersToDestroy[i])
+			{
+				physics::Physics().drawOrder.erase(physics::Physics().drawOrder.begin() + j);
+				break;
+			}
+		}
+
+		physics::Physics().destroyBody(playersToDestroy[i]);
+
+		Registry.destroy(playersToDestroy[i]);
+	}
+}
+
+void player::scrollBar(gunInfo& gun)
+{
+	// Visualize scrollbar
+	ui::UI().image("ScrollBarBackGround", { SCRWIDTH * 0.5f, SCRHEIGHT * 0.12f }, "assets/uiSprites/ItemBar.png", 10);
+
+
+	auto showGunInBar = [](glm::vec2 pos, gunInfo::type gunType)
+		{
+			switch (gunType)
+			{
+			case gunInfo::HAND:
+				ui::UI().image("ScrollBarHand", pos, "assets/guns/handLoose.png", 11);
+				break;
+			case gunInfo::PISTOL:
+				ui::UI().image("ScrollBarPistol", pos, "assets/guns/glockLoose.png", 11);
+				break;
+			case gunInfo::SHOTGUN:
+				ui::UI().image("ScrollBarShotgun", pos, "assets/guns/shotgunLoose.png", 11);
+				break;
+			case gunInfo::MINIGUN:
+				ui::UI().image("ScrollBarMinigun", pos, "assets/guns/minigunLoose.png", 11);
+				break;
+			case gunInfo::SNIPER:
+				ui::UI().image("ScrollBarSniper", pos, "assets/guns/sniperLoose.png", 11);
+				break;
+			case gunInfo::BOUNCER:
+				ui::UI().image("ScrollBarBouncer", pos, "assets/guns/bouncerLoose.png", 11);
+				break;
+			case gunInfo::TPPEARL:
+				break;
+			default:
+				break;
+			}
+		};
+
+	int gunTypeLeft = gun.activeType - 1;
+	int gunTypeRight = gun.activeType + 1;
+
+	if (gunTypeLeft < 0) gunTypeLeft = int(gun.inventory.size()) - (std::abs(gunTypeLeft) % gun.inventory.size());
+	else gunTypeLeft = gunTypeLeft % gun.inventory.size();
+	if (gunTypeRight < 0) gunTypeRight = int(gun.inventory.size()) - (std::abs(gunTypeRight) % gun.inventory.size());
+	else gunTypeRight = gunTypeRight % gun.inventory.size();
+
+	showGunInBar({ SCRWIDTH * 0.5f - 75, SCRHEIGHT * 0.12f }, static_cast<gunInfo::type>(gunTypeLeft));
+	showGunInBar({ SCRWIDTH * 0.5f, SCRHEIGHT * 0.12f }, static_cast<gunInfo::type>(gun.activeType));
+	showGunInBar({ SCRWIDTH * 0.5f + 75, SCRHEIGHT * 0.12f }, static_cast<gunInfo::type>(gunTypeRight));
 }
